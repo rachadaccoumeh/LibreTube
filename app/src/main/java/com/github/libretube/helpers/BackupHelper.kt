@@ -53,6 +53,13 @@ object BackupHelper {
             JsonHelper.json.decodeFromStream<BackupFile>(it)
         } ?: return@withContext
 
+        restoreAdvancedBackupData(context, backupFile)
+    }
+
+    /**
+     * Restore data from a [BackupFile] object directly (used by full backup restore)
+     */
+    suspend fun restoreAdvancedBackupData(context: Context, backupFile: BackupFile) {
         Database.watchHistoryDao().insertAll(backupFile.watchHistory.orEmpty())
         Database.searchHistoryDao().insertAll(backupFile.searchHistory.orEmpty())
         Database.watchPositionDao().insertAll(backupFile.watchPositions.orEmpty())
