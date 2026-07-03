@@ -69,7 +69,6 @@ class PlaylistAdapter(
                 if (localFile.exists()) {
                     ImageHelper.loadImage(thumbUrl, thumbnail)
                 } else {
-                    android.util.Log.e("PlaylistAdapter", "thumbnail: local file missing, falling back to CDN: videoId=$videoId")
                     val ytThumbUrl = "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
                     ImageHelper.loadImage(ytThumbUrl, thumbnail)
                     // Save locally for next time

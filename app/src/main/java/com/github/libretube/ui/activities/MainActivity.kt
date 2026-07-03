@@ -376,6 +376,20 @@ class MainActivity : AbstractPlayerHostActivity() {
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (!shouldOpenSuggestions) return true
 
+                // Downloads and Playlists search locally — don't block them
+                if (currentSearchType == SearchType.DOWNLOADS || currentSearchType == SearchType.PLAYLIST) {
+                    when (currentSearchType) {
+                        SearchType.DOWNLOADS -> {
+                            downloadViewModel.setQuery(newText)
+                        }
+                        SearchType.PLAYLIST -> {
+                            playlistViewModel.setQuery(newText)
+                        }
+                        else -> {}
+                    }
+                    return true
+                }
+
                 // Prevent navigation when search view is collapsed
                 if (searchView.isIconified ||
                     binding.bottomNav.menu.children.any {
@@ -407,13 +421,7 @@ class MainActivity : AbstractPlayerHostActivity() {
                         }
                     }
 
-                    SearchType.PLAYLIST -> {
-                        playlistViewModel.setQuery(newText)
-                    }
-
-                    SearchType.DOWNLOADS -> {
-                        downloadViewModel.setQuery(newText)
-                    }
+                    else -> {}
                 }
 
                 return true
