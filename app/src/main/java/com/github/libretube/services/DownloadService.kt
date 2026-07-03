@@ -58,6 +58,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -80,6 +81,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.createFile
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.div
+import kotlin.io.path.exists
 import kotlin.io.path.fileSize
 import kotlin.math.min
 
@@ -100,8 +102,8 @@ class DownloadService : LifecycleService() {
 
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(Duration.ofMillis(DownloadHelper.DEFAULT_TIMEOUT.toLong()))
-            .readTimeout(Duration.ofMillis(DownloadHelper.DEFAULT_TIMEOUT.toLong()))
+            .connectTimeout(Duration.ofSeconds(30))
+            .readTimeout(Duration.ofSeconds(30))
             .retryOnConnectionFailure(true)
             .build()
     }
@@ -252,24 +254,52 @@ class DownloadService : LifecycleService() {
      * and notification.
      */
     private suspend fun downloadFile(item: DownloadItem) {
+        Log.e(this::class.java.name, "downloadFile() started for id=${item.id}, videoId=${item.videoId}")
         downloadQueue[item.id] = true
         val notificationBuilder = getNotificationBuilder(item)
         setResumeNotification(notificationBuilder, item)
 
-        var totalRead = item.path.fileSize()
-        val url = URL(ProxyHelper.rewriteUrlUsingProxyPreference(item.url ?: return))
+        var totalRead = if (item.path.exists()) item.path.fileSize() else 0
+        Log.e(this::class.java.name, "downloadFile() — existing fileSize=$totalRead, downloadSize=${item.downloadSize}, url=${item.url}")
+        val url = URL(ProxyHelper.rewriteUrlUsingProxyPreference(item.url ?: run {
+            Log.e(this::class.java.name, "downloadFile() — item.url is null, cannot download")
+            return
+        }))
+
+        // If file is larger than downloadSize, DB metadata is stale — delete and re-download
+        if (totalRead > 0 && item.downloadSize > 0 && totalRead > item.downloadSize) {
+            Log.e(this::class.java.name, "downloadFile() — fileSize ($totalRead) > downloadSize (${item.downloadSize}), deleting file and re-downloading")
+            item.path.deleteIfExists()
+            item.path.createFile()
+            totalRead = 0
+            // Re-fetch the correct content length
+            item.downloadSize = 0L
+        }
 
         // only fetch the content length if it's not been returned by the API
         if (item.downloadSize <= 0L) {
+            Log.e(this::class.java.name, "downloadFile() — fetching content length from URL")
             url.getContentLength()?.let { size ->
                 item.downloadSize = size
                 Database.downloadDao().updateDownloadItem(item)
+                Log.e(this::class.java.name, "downloadFile() — content length=$size")
             }
         }
 
+        // Ensure file exists before download loop (may have been deleted by previous crash)
+        if (!item.path.exists()) {
+            item.path.createFile()
+        }
+
+        Log.e(this::class.java.name, "downloadFile() — starting download loop: totalRead=$totalRead, downloadSize=${item.downloadSize}")
         while (totalRead < item.downloadSize) {
             try {
+                val previousRead = totalRead
                 totalRead = progressDownload(item, url, totalRead, notificationBuilder)
+                if (totalRead == previousRead) {
+                    // No progress made — startConnection failed after all retries
+                    break
+                }
             } catch (_: CancellationException) {
                 break
             } catch (e: Exception) {
@@ -280,11 +310,16 @@ class DownloadService : LifecycleService() {
             }
         }
 
-        val completed = totalRead >= item.downloadSize
+        val completed = item.downloadSize > 0 && totalRead >= item.downloadSize
+        Log.e(this::class.java.name, "downloadFile() finished for id=${item.id}, totalRead=$totalRead, downloadSize=${item.downloadSize}, completed=$completed")
         if (completed) {
             _downloadFlow.emit(item.id to DownloadStatus.Completed)
+            failedDownloads.remove(item.id)
         } else {
             _downloadFlow.emit(item.id to DownloadStatus.Paused)
+            if (totalRead == 0L) {
+                failedDownloads.add(item.id)
+            }
         }
 
         setPauseNotification(notificationBuilder, item, completed)
@@ -294,9 +329,10 @@ class DownloadService : LifecycleService() {
         // start the next download if there are any remaining ones enqueued
         for (id in downloadQueue.keyIterator()) {
             if (downloadQueue[id]) continue
+            if (id in failedDownloads) continue
 
             val dbItem = Database.downloadDao().findDownloadItemById(id)
-            if (dbItem != null && (dbItem.downloadSize <= 0L || dbItem.path.fileSize() < dbItem.downloadSize)) {
+            if (dbItem != null && (dbItem.downloadSize <= 0L || (if (dbItem.path.exists()) dbItem.path.fileSize() else 0) < dbItem.downloadSize)) {
                 resume(id)
                 return
             }
@@ -313,8 +349,14 @@ class DownloadService : LifecycleService() {
         totalReadBefore: Long,
         notificationBuilder: Builder
     ): Long {
+        Log.e(this::class.java.name, "progressDownload() called for id=${item.id}, totalReadBefore=$totalReadBefore, downloadSize=${item.downloadSize}")
         val source =
-            startConnection(item, url, totalReadBefore, item.downloadSize) ?: return totalReadBefore
+            startConnection(item, url, totalReadBefore, item.downloadSize)
+        if (source == null) {
+            Log.e(this::class.java.name, "progressDownload() — startConnection returned null, no progress")
+            return totalReadBefore
+        }
+        Log.e(this::class.java.name, "progressDownload() — startConnection returned source, reading data...")
 
         var totalRead = totalReadBefore
 
@@ -387,8 +429,11 @@ class DownloadService : LifecycleService() {
         val limit = readLimit?.let {
             // generate a random byte distance to make it more difficult to fingerprint
             val nextBytesToReadSize = (BYTES_PER_REQUEST_MIN..BYTES_PER_REQUEST_MAX).random()
-            min(readLimit, alreadyRead + nextBytesToReadSize)
-        }?.toString().orEmpty()
+            val endByte = min(readLimit, alreadyRead + nextBytesToReadSize)
+            // Range header is inclusive — if endByte equals the full content length,
+            // omit the end to let the server send the remaining bytes without off-by-one issues
+            if (endByte >= readLimit) "" else (endByte - 1).toString()
+        }.orEmpty()
 
         val request = Request.Builder()
             .url(url)
@@ -397,27 +442,70 @@ class DownloadService : LifecycleService() {
             .build()
 
         return withContext(Dispatchers.IO) {
-            // Retry connecting to server for n times.
-            try {
-                val call = httpClient.newCall(request)
-                val response = call.execute()
+            val maxRetries = 3
+            var lastError: IOException? = null
 
-                return@withContext handleResponse(item, response)
-            } catch (e: IOException) {
-                Log.e(this::javaClass.name, e.printStackTrace().toString())
-
-                val message = getString(R.string.downloadfailed)
-                _downloadFlow.emit(item.id to DownloadStatus.Error(message))
-                toastFromMainThread(message)
-
-                return@withContext null
+            for (attempt in 0 until maxRetries) {
+                try {
+                    val call = httpClient.newCall(request)
+                    val response = call.execute()
+                    return@withContext handleResponse(item, response)
+                } catch (e: IOException) {
+                    lastError = e
+                    Log.e(this::javaClass.name, "Download attempt ${attempt + 1}/$maxRetries failed: ${e.message}")
+                    if (attempt < maxRetries - 1) {
+                        val backoffMs = (1000L * (1 shl attempt)) + (100..500).random()
+                        delay(backoffMs)
+                    }
+                }
             }
+
+            Log.e(this::javaClass.name, "All $maxRetries attempts failed, trying to regenerate link", lastError)
+            regenerateLink(item)
+            val newUrl = item.url
+            if (newUrl != null && newUrl != url.toString()) {
+                Log.e(this::javaClass.name, "Link regenerated, retrying with new URL")
+                val regeneratedRequest = Request.Builder()
+                    .url(URL(ProxyHelper.rewriteUrlUsingProxyPreference(newUrl)))
+                    .method("GET", null)
+                    .header("Range", "bytes=$alreadyRead-$limit")
+                    .build()
+                try {
+                    val call = httpClient.newCall(regeneratedRequest)
+                    val response = call.execute()
+                    return@withContext handleResponse(item, response)
+                } catch (e: IOException) {
+                    Log.e(this::javaClass.name, "Regenerated link also failed: ${e.message}")
+                }
+            }
+
+            val message = getString(R.string.downloadfailed)
+            _downloadFlow.emit(item.id to DownloadStatus.Error(message))
+            toastFromMainThread(message)
+
+            null
         }
     }
 
+    private val failedDownloads = mutableSetOf<Int>()
+    private var regenerateCount = 0
+
     private suspend fun handleResponse(item: DownloadItem, response: Response): ResponseBody? {
-        // If link is expired try to regenerate using available info.
-        if (response.code == 403) {
+        Log.e(this::class.java.name, "handleResponse() code=${response.code}, message=${response.message}, url=${response.request.url.toString().take(80)}")
+        // If link is expired or unavailable, try to regenerate using available info.
+        if (response.code == 403 || response.code == 503) {
+            regenerateCount++
+            if (regenerateCount > 3) {
+                Log.e(this::class.java.name, "handleResponse() — already regenerated $regenerateCount times, giving up")
+                regenerateCount = 0
+                val message = getString(R.string.downloadfailed) + ": 503 Service Unavailable"
+                _downloadFlow.emit(item.id to DownloadStatus.Error(message))
+                toastFromMainThread(message)
+                response.close()
+                pause(item.id)
+                return null
+            }
+            Log.e(this::class.java.name, "handleResponse() got ${response.code}, regenerating link (attempt $regenerateCount/3) and retrying")
             regenerateLink(item)
             response.close()
             downloadFile(item)
@@ -431,6 +519,7 @@ class DownloadService : LifecycleService() {
             return null
         }
 
+        regenerateCount = 0
         return response.body
     }
 
@@ -469,10 +558,16 @@ class DownloadService : LifecycleService() {
      * Resume download which may have been paused.
      */
     fun resume(id: Int) {
+        Log.e(this::class.java.name, "resume() called for id=$id, downloadQueue[$id]=${downloadQueue[id]}")
+        failedDownloads.remove(id)
         // If file is already downloading then avoid new download job.
-        if (downloadQueue[id]) return
+        if (downloadQueue[id]) {
+            Log.e(this::class.java.name, "resume() skipped — already downloading")
+            return
+        }
 
         if (!mayStartNewDownload()) {
+            Log.e(this::class.java.name, "resume() skipped — concurrent limit reached")
             toastFromMainThread(getString(R.string.concurrent_downloads_limit_reached))
             lifecycleScope.launch(coroutineContext) {
                 _downloadFlow.emit(id to DownloadStatus.Paused)
@@ -481,7 +576,12 @@ class DownloadService : LifecycleService() {
         }
 
         lifecycleScope.launch(coroutineContext) {
-            val file = Database.downloadDao().findDownloadItemById(id) ?: return@launch
+            val file = Database.downloadDao().findDownloadItemById(id)
+            if (file == null) {
+                Log.e(this::class.java.name, "resume() — no DownloadItem found in DB for id=$id")
+                return@launch
+            }
+            Log.e(this::class.java.name, "resume() starting downloadFile for id=$id, videoId=${file.videoId}, url=${file.url}, fileSize=${if (file.path.exists()) file.path.fileSize() else 0}, downloadSize=${file.downloadSize}")
             downloadFile(file)
         }
     }
@@ -682,7 +782,6 @@ class DownloadService : LifecycleService() {
 
     override fun onBind(intent: Intent): IBinder {
         super.onBind(intent)
-        intent.getIntArrayExtra("ids")?.forEach { resume(it) }
         return binder
     }
 
@@ -697,10 +796,10 @@ class DownloadService : LifecycleService() {
         const val ACTION_SERVICE_STOPPED =
             "com.github.libretube.services.DownloadService.ACTION_SERVICE_STOPPED"
 
-        // any values that are not in that range are strictly rate limited by YT or are very slow due
-        // to the amount of requests that's being made
-        private const val BYTES_PER_REQUEST_MIN = 500_000L
-        private const val BYTES_PER_REQUEST_MAX = 3_000_000L
+        // Larger chunks to reduce number of HTTP requests and avoid YouTube throttling.
+        // Previous values (500KB-3MB) caused 33-200 requests per video and got rate-limited.
+        private const val BYTES_PER_REQUEST_MIN = 10_000_000L
+        private const val BYTES_PER_REQUEST_MAX = 50_000_000L
 
         var IS_DOWNLOAD_RUNNING = false
     }

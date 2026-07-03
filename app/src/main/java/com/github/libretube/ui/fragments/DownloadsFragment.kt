@@ -88,6 +88,7 @@ class DownloadsFragment : Fragment(R.layout.fragment_downloads) {
         super.onViewCreated(view, savedInstanceState)
 
         binding.downloadsPager.adapter = DownloadsFragmentAdapter(this)
+        binding.downloadsPager.isUserInputEnabled = false
 
         TabLayoutMediator(binding.tabLayout, binding.downloadsPager) { tab, position ->
             tab.text = when (position) {
@@ -150,9 +151,19 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
             PreferenceHelper.putInt(PreferenceKeys.SELECTED_DOWNLOAD_SORT_TYPE, value)
         }
 
+    private var selectedFilter
+        get() = PreferenceHelper.getInt(
+            "selected_download_filter",
+            DownloadFilter.ALL.ordinal
+        )
+        set(value) {
+            PreferenceHelper.putInt("selected_download_filter", value)
+        }
+
     private val serviceConnection = object : ServiceConnection {
         var isBound = false
         var job: Job? = null
+        var pendingResumeIds: IntArray? = null
 
         override fun onServiceConnected(name: ComponentName?, iBinder: IBinder?) {
             binder = iBinder as DownloadService.LocalBinder
@@ -246,11 +257,21 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
             submitDownloadList(downloads)
 
             binding.sortType.setOnClickListener {
-                BaseBottomSheet().setSimpleItems(filterOptions.toList()) { index ->
+                BaseBottomSheet().setSimpleItems(sortOptions.toList()) { index ->
                     if (index == selectedSortType) return@setSimpleItems
                     selectedSortType = index
 
-                    binding.sortType.text = filterOptions[index]
+                    binding.sortType.text = sortOptions[index]
+                    submitDownloadList(downloads)
+                }.show(childFragmentManager)
+            }
+
+            binding.filterType.setOnClickListener {
+                BaseBottomSheet().setSimpleItems(filterOptions.toList()) { index ->
+                    if (index == selectedFilter) return@setSimpleItems
+                    selectedFilter = index
+
+                    binding.filterType.text = filterOptions[index]
                     submitDownloadList(downloads)
                 }.show(childFragmentManager)
             }
