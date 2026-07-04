@@ -42,6 +42,7 @@ import com.github.libretube.helpers.ClipboardHelper
 import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PlayerHelper
+import com.github.libretube.helpers.PlayerStateHelper
 import com.github.libretube.helpers.ThemeHelper
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.services.AbstractPlayerService
@@ -80,6 +81,7 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
 
     private var handler = Handler(Looper.getMainLooper())
     private var isPaused = !PlayerHelper.playAutomatically
+    private var lastPositionSaveTime = 0L
 
     var isOffline: Boolean = false
         private set
@@ -289,10 +291,13 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
     private fun killFragment(stopPlayer: Boolean) {
         viewModel.isMiniPlayerVisible.value = false
 
-        if (stopPlayer) playerController?.sendCustomCommand(
-            AbstractPlayerService.stopServiceCommand,
-            Bundle.EMPTY
-        )
+        if (stopPlayer) {
+            PlayerStateHelper.clearState(requireContext())
+            playerController?.sendCustomCommand(
+                AbstractPlayerService.stopServiceCommand,
+                Bundle.EMPTY
+            )
+        }
         playerController?.release()
         playerController = null
 
@@ -361,6 +366,18 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         metadata.artworkUri?.let { updateThumbnailAsync(it) }
 
         initializeSeekBar()
+
+        // save player state for restoration on app restart
+        val currentId = PlayingQueue.getCurrent()?.url?.toID()
+        if (currentId != null) {
+            PlayerStateHelper.saveState(
+                requireContext(),
+                currentId,
+                playerController?.currentPosition ?: 0,
+                isOffline,
+                true
+            )
+        }
     }
 
     private fun updateThumbnailAsync(thumbnailUri: Uri) {
@@ -429,6 +446,14 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         // update the mini player progress bar
         val progressPercent = ((currentPosition / duration) * 100).toInt().coerceIn(0, 100)
         binding.miniPlayerProgress.progress = progressPercent
+
+        // save position to preferences periodically (~every 2 sec)
+        if (System.currentTimeMillis() - lastPositionSaveTime > 2000) {
+            lastPositionSaveTime = System.currentTimeMillis()
+            PlayingQueue.getCurrent()?.url?.toID()?.let { id ->
+                PlayerStateHelper.savePosition(requireContext(), currentPosition.toLong())
+            }
+        }
 
         handler.postDelayed(this::updateSeekBar, 200)
     }

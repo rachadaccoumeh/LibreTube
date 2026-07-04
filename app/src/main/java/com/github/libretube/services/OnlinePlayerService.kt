@@ -49,6 +49,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
     private var playlistId: String? = null
     private var channelId: String? = null
     private var startTimestampSeconds: Long? = null
+    private var startPaused: Boolean = false
 
     /**
      * The response that gets when called the Api.
@@ -105,6 +106,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
         playlistId = playerData.playlistId
         channelId = playerData.channelId
         startTimestampSeconds = playerData.timestamp
+        startPaused = playerData.startPaused
 
         if (!playerData.keepQueue) PlayingQueue.clear()
 
@@ -177,7 +179,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
         exoPlayer?.apply {
             // automatically start playback when using the audio player
-            playWhenReady = PlayerHelper.playAutomatically || isAudioOnlyPlayer
+            playWhenReady = (PlayerHelper.playAutomatically || isAudioOnlyPlayer) && !startPaused
             prepare()
         }
     }

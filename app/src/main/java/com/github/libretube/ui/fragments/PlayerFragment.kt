@@ -76,6 +76,7 @@ import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PlayerHelper.getCurrentSegment
+import com.github.libretube.helpers.PlayerStateHelper
 import com.github.libretube.helpers.ThemeHelper
 import com.github.libretube.helpers.WindowHelper
 import com.github.libretube.obj.ShareData
@@ -153,6 +154,15 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             val progressPercent = ((position.toFloat() / duration) * 100).toInt().coerceIn(0, 100)
             binding.miniPlayerProgress?.progress = progressPercent
             handler.postDelayed(this, 200)
+        }
+    }
+
+    private val playerStateSaveRunnable = object : Runnable {
+        override fun run() {
+            if (!::playerController.isInitialized) return
+            val position = playerController.currentPosition
+            PlayerStateHelper.savePosition(requireContext(), position)
+            handler.postDelayed(this, 2000)
         }
     }
 
@@ -248,8 +258,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             if (isPlaying) {
                 handler.post(miniPlayerProgressRunnable)
+                handler.post(playerStateSaveRunnable)
             } else {
                 handler.removeCallbacks(miniPlayerProgressRunnable)
+                handler.removeCallbacks(playerStateSaveRunnable)
             }
         }
 
@@ -322,6 +334,17 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 this@PlayerFragment.streams = streams
                 viewModel.segments.postValue(emptyList())
                 updatePlayerView()
+            }
+
+            // save player state for restoration on app restart
+            if (_binding != null && ::videoId.isInitialized) {
+                PlayerStateHelper.saveState(
+                    requireContext(),
+                    videoId,
+                    playerController.currentPosition,
+                    isOffline,
+                    false
+                )
             }
         }
 
@@ -660,8 +683,15 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 }
             }
 
-        binding.playerMotionLayout.progress = 1F
-        binding.playerMotionLayout.transitionToStart()
+        if (requireArguments().getBoolean(IntentData.minimizeByDefault, false)) {
+            binding.playerMotionLayout.progress = 0F
+            binding.playerMotionLayout.transitionToEnd()
+            commonPlayerViewModel.isMiniPlayerVisible.value = true
+            baseActivity.minimizePlayerContainerLayout()
+        } else {
+            binding.playerMotionLayout.progress = 1F
+            binding.playerMotionLayout.transitionToStart()
+        }
 
         val activity = requireActivity()
         if (PlayerHelper.pipEnabled) {
@@ -675,7 +705,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             .animateDown(
                 duration = 300L,
                 dy = 500F,
-                onEnd = ::killPlayerFragment
+                onEnd = { killPlayerFragment() }
             )
     }
 
@@ -823,7 +853,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         binding.player.player = null
 
         playerController.release()
-        killPlayerFragment()
+        killPlayerFragment(clearSavedState = false)
 
         NavigationHelper.openAudioPlayerFragment(requireContext(), offlinePlayer = isOffline)
     }
@@ -1008,7 +1038,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     /**
      * Manually kill the player fragment - call instead of using onDestroy directly
      */
-    private fun killPlayerFragment() {
+    private fun killPlayerFragment(clearSavedState: Boolean = true) {
+        if (clearSavedState) {
+            PlayerStateHelper.clearState(requireContext())
+        }
         binding.playerMotionLayout.transitionToEnd()
 
         commonPlayerViewModel.isMiniPlayerVisible.value = false

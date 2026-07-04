@@ -40,18 +40,22 @@ import com.github.libretube.enums.ImportFormat
 import com.github.libretube.enums.SearchType
 import com.github.libretube.enums.TopLevelDestination
 import com.github.libretube.extensions.anyChildFocused
+import com.github.libretube.helpers.BackgroundHelper
 import com.github.libretube.helpers.ImportHelper
 import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.helpers.NavBarHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.NetworkHelper
+import com.github.libretube.helpers.PlayerStateHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ThemeHelper
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.ui.dialogs.ErrorDialog
 import com.github.libretube.ui.dialogs.ImportTempPlaylistDialog
 import com.github.libretube.ui.extensions.onSystemInsets
+import com.github.libretube.ui.fragments.AudioPlayerFragment
 import com.github.libretube.ui.fragments.DownloadsFragment
+import com.github.libretube.ui.fragments.PlayerFragment
 import com.github.libretube.ui.models.DownloadsViewModel
 import com.github.libretube.ui.models.PlaylistViewModel
 import com.github.libretube.ui.models.SearchViewModel
@@ -219,6 +223,38 @@ class MainActivity : AbstractPlayerHostActivity() {
         }
 
         setupSubscriptionsBadge()
+
+        // restore last playing video/audio in mini-player (paused)
+        // posted to wait for bottom nav layout to be ready
+        binding.root.post {
+            if (savedInstanceState == null &&
+                supportFragmentManager.fragments.none { it is PlayerFragment || it is AudioPlayerFragment }
+            ) {
+                PlayerStateHelper.getSavedState(this)?.let { state ->
+                    val timestampSec = state.positionMs / 1000
+                    val playerData = PlayerData(
+                        videoId = state.videoId,
+                        timestamp = timestampSec,
+                        isOffline = state.isOffline,
+                        startPaused = true
+                    )
+                    if (state.isAudioOnly) {
+                        BackgroundHelper.playOnBackground(this, playerData)
+                        NavigationHelper.openAudioPlayerFragment(
+                            this,
+                            offlinePlayer = state.isOffline,
+                            minimizeByDefault = true
+                        )
+                    } else {
+                        NavigationHelper.openVideoPlayerFragment(
+                            context = this,
+                            playerData = playerData,
+                            minimizeByDefault = true
+                        )
+                    }
+                }
+            }
+        }
 
         loadIntentData()
 
