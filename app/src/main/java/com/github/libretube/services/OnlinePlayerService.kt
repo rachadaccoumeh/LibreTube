@@ -182,6 +182,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
             playWhenReady = (PlayerHelper.playAutomatically || isAudioOnlyPlayer) && !startPaused
             prepare()
         }
+        startPaused = false
     }
 
     /**

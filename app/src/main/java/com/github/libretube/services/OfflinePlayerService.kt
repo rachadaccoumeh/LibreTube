@@ -142,6 +142,9 @@ open class OfflinePlayerService : AbstractPlayerService() {
                 }
             }
         }
+
+        // reset startPaused so subsequent video navigations play normally
+        playerData = playerData.copy(startPaused = false)
     }
 
     private fun setMediaItem(downloadWithItems: DownloadWithItems) {
@@ -201,7 +204,8 @@ open class OfflinePlayerService : AbstractPlayerService() {
     }
 
     private suspend fun fillQueue() {
-        if (playerData.downloadTab == DownloadTab.PLAYLIST) {
+        val tab = playerData.downloadTab ?: DownloadTab.VIDEO
+        if (tab == DownloadTab.PLAYLIST) {
             var videos = withContext(Dispatchers.IO) {
                 Database.downloadDao().getDownloadPlaylistById(playerData.playlistId!!)
             }.downloadVideos
@@ -215,7 +219,7 @@ open class OfflinePlayerService : AbstractPlayerService() {
             var downloads = withContext(Dispatchers.IO) {
                 Database.downloadDao().getAll()
             }
-                .filterByTab(playerData.downloadTab!!)
+                .filterByTab(tab)
                 .map { it.download }
 
             if (playerData.shuffle) downloads = downloads.shuffled()

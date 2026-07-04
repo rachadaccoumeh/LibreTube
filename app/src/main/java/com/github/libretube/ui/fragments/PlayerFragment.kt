@@ -138,6 +138,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private var channelId: String? = null
     var isOffline: Boolean = false
         private set
+    private var downloadTab: DownloadTab? = null
 
     // data and objects stored for the player
     private lateinit var streams: Streams
@@ -343,7 +344,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                     videoId,
                     playerController.currentPosition,
                     isOffline,
-                    false
+                    false,
+                    downloadTab
                 )
             }
         }
@@ -465,6 +467,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         isOffline = playerData.isOffline
         playlistId = playerData.playlistId
         channelId = playerData.channelId
+        downloadTab = playerData.downloadTab
 
         // remember if playback already started once and only restart playback if that's the first run
         val createNewSession = !requireArguments().getBoolean(IntentData.alreadyStarted)
