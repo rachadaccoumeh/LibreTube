@@ -61,5 +61,14 @@
             motion:layout_constraintEnd_toEndOf="@id/audio_player_container"
             motion:layout_constraintStart_toStartOf="@id/audio_player_container"
             motion:layout_constraintTop_toTopOf="@+id/audio_player_container" />
+        <Constraint
+            android:id="@+id/miniPlayerProgress"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:alpha="1"
+            android:visibility="visible"
+            motion:layout_constraintBottom_toBottomOf="@+id/audio_player_container"
+            motion:layout_constraintEnd_toEndOf="@+id/audio_player_container"
+            motion:layout_constraintStart_toStartOf="@+id/audio_player_container" />
     </ConstraintSet>
 </MotionScene>
