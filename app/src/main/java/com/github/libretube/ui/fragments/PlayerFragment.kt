@@ -193,6 +193,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         object : Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen) {
             @Deprecated("Deprecated in Java", ReplaceWith("onbackpressedispatcher and callback"))
             override fun onBackPressed() {
+                // Safety net: ignore back press right after entering fullscreen
+                val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+                if (timeSinceEnter < 500) return
                 unsetFullscreen()
             }
 
@@ -535,8 +538,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (commonPlayerViewModel.isFullscreen.value == true) unsetFullscreen()
-                else {
+                if (commonPlayerViewModel.isFullscreen.value == true) {
+                    // Safety net: ignore back press right after entering fullscreen
+                    val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+                    if (timeSinceEnter < 500) return
+                    unsetFullscreen()
+                } else {
                     binding.playerMotionLayout.setTransitionDuration(250)
                     binding.playerMotionLayout.transitionToEnd()
                     baseActivity.minimizePlayerContainerLayout()
@@ -564,6 +571,23 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             // if the player is minimized, the fragment behind the player should handle the event
             onBackPressedCallback.isEnabled = isMiniPlayerVisible != true
+        }
+
+        // detect swipe down on the scroll area (title/description) to enter portrait fullscreen
+        // with live animation feedback during the drag
+        binding.playerMotionLayout.addSwipeDownOnScrollListener { dragDistance ->
+            if (PlayerHelper.fullscreenGesturesEnabled &&
+                commonPlayerViewModel.isFullscreen.value != true
+            ) {
+                binding.player.onSwipeDownScrollProgress(dragDistance)
+            }
+        }
+        binding.playerMotionLayout.addSwipeDownOnScrollEndListener { enterFullscreen ->
+            if (PlayerHelper.fullscreenGesturesEnabled &&
+                commonPlayerViewModel.isFullscreen.value != true
+            ) {
+                binding.player.onSwipeDownScrollEnd(enterFullscreen)
+            }
         }
 
         connectToPlayerView()
@@ -867,12 +891,23 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         baseActivity.requestedOrientation = PlayerHelper.getFullscreenOrientation(streams.isShort)
     }
 
-    private fun setFullscreen() {
+    // Timestamp of last fullscreen enter. Used to debounce gesture-based exits
+    // that are caused by broken touch sequences from view reparenting.
+    private var lastFullscreenEnterTime = 0L
+
+    private fun setFullscreen(portrait: Boolean = false) {
+        lastFullscreenEnterTime = System.currentTimeMillis()
+
         // set status bar icon color to white
         windowInsetsControllerCompat.isAppearanceLightStatusBars = false
 
         commonPlayerViewModel.isFullscreen.value = true
-        updateFullscreenOrientation()
+
+        if (portrait) {
+            baseActivity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        } else {
+            baseActivity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
 
         commonPlayerViewModel.setSheetExpand(null)
 
@@ -895,6 +930,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         binding.player.updateMarginsByFullscreenMode()
 
+        // reset gesture animation state in case a swipe was in progress
+        binding.player.resetFullscreenGesture()
+
         // set status bar icon color back to theme color after fullscreen dialog closed!
         windowInsetsControllerCompat.isAppearanceLightStatusBars =
             !ThemeHelper.isDarkMode(requireContext())
@@ -903,15 +941,18 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     /**
      * Enter/exit fullscreen or toggle it depending on the current state
      */
-    override fun toggleFullscreen() {
+    override fun toggleFullscreen(portrait: Boolean) {
         binding.player.hideController()
 
         val isFullscreen = commonPlayerViewModel.isFullscreen.value == true
         if (!isFullscreen) {
             // go to fullscreen mode
-            setFullscreen()
+            setFullscreen(portrait)
         } else {
             // exit fullscreen mode
+            // Safety net: ignore exits right after entering fullscreen
+            val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+            if (timeSinceEnter < 500) return
             unsetFullscreen()
         }
     }
@@ -925,7 +966,14 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 binding.player,
                 LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             )
+            // Fade in the dialog for a smooth fullscreen transition
+            fullscreenDialog.window?.decorView?.alpha = 0f
             fullscreenDialog.show()
+            fullscreenDialog.window?.decorView?.animate()
+                ?.alpha(1f)
+                ?.setDuration(300)
+                ?.setInterpolator(android.view.animation.DecelerateInterpolator())
+                ?.start()
             playerView.currentWindow = fullscreenDialog.window
         } else {
             binding.playerMotionLayout.addView(playerView)
@@ -1487,11 +1535,16 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
 
         if (PlayerHelper.autoFullscreenEnabled) {
+            val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
             when (newConfig.orientation) {
                 // go to fullscreen mode
                 Configuration.ORIENTATION_LANDSCAPE -> setFullscreen()
                 // exit fullscreen if not landscape
-                else -> unsetFullscreen()
+                else -> {
+                    // Safety net: ignore exits right after entering fullscreen
+                    if (timeSinceEnter < 500) return
+                    unsetFullscreen()
+                }
             }
         }
 

@@ -85,7 +85,15 @@ class PlayerGestureController(activity: BaseActivity, private val listener: Play
                 }
             }
 
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_CANCEL -> {
+                if (isMoving) listener.onSwipeEnd()
+                isMoving = false
+
+                if (longPressInProgress) listener.onLongPressEnd()
+                longPressInProgress = false
+            }
+
+            MotionEvent.ACTION_UP -> {
                 if (isMoving) listener.onSwipeEnd()
                 isMoving = false
 
@@ -206,8 +214,14 @@ class PlayerGestureController(activity: BaseActivity, private val listener: Play
             val insideBorder =
                 (e1.x < BORDER_THRESHOLD || e1.y < BORDER_THRESHOLD || e1.x > width - BORDER_THRESHOLD || e1.y > height - BORDER_THRESHOLD)
 
+            // In portrait fullscreen, skip border check so swipe-down-to-exit works from anywhere
             // If the movement is inside threshold or scroll is horizontal then return false
-            if (!isMoving && (insideThreshHold || insideBorder || abs(distanceX) > abs(distanceY))) {
+            if (!isMoving && (
+                    insideThreshHold ||
+                        (isFullscreen && orientation == Configuration.ORIENTATION_PORTRAIT).not() && insideBorder ||
+                        abs(distanceX) > abs(distanceY)
+                )
+            ) {
                 return false
             }
 
@@ -215,6 +229,12 @@ class PlayerGestureController(activity: BaseActivity, private val listener: Play
 
             if (!isFullscreen && distanceY > 0) {
                 // Allow swipe up on the entire area if the player is not currently in fullscreen
+                listener.onSwipeCenterScreen(distanceY, e2.y)
+                return true
+            }
+
+            // In portrait fullscreen, allow swipe down from anywhere to exit fullscreen
+            if (isFullscreen && orientation == Configuration.ORIENTATION_PORTRAIT) {
                 listener.onSwipeCenterScreen(distanceY, e2.y)
                 return true
             }
