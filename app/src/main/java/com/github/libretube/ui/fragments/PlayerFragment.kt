@@ -108,6 +108,7 @@ import com.github.libretube.util.OnlineTimeFrameReceiver
 import com.github.libretube.util.PlayingQueue
 import com.github.libretube.util.TextUtils
 import com.github.libretube.util.TextUtils.toTimeInSeconds
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -139,6 +140,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     var isOffline: Boolean = false
         private set
     private var downloadTab: DownloadTab? = null
+    private var isDownloaded: Boolean = false
 
     // data and objects stored for the player
     private lateinit var streams: Streams
@@ -825,7 +827,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         binding.relPlayerDownload.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
 
-            DownloadHelper.startDownloadDialog(requireContext(), childFragmentManager, videoId)
+            if (isDownloaded) {
+                showDeleteDownloadDialog()
+            } else {
+                DownloadHelper.startDownloadDialog(requireContext(), childFragmentManager, videoId)
+            }
         }
 
         binding.relPlayerScreenshot.setOnClickListener {
@@ -883,6 +889,32 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         killPlayerFragment(clearSavedState = false)
 
         NavigationHelper.openAudioPlayerFragment(requireContext(), offlinePlayer = isOffline)
+    }
+
+    private fun showDeleteDownloadDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.delete)
+            .setMessage(R.string.irreversible)
+            .setPositiveButton(R.string.okay) { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val downloadWithItems = DatabaseHolder.Database.downloadDao().getDownloadById(videoId)
+                    if (downloadWithItems != null) {
+                        DownloadHelper.deleteDownloadIncludingFiles(downloadWithItems)
+                    }
+                    withContext(Dispatchers.Main) {
+                        isDownloaded = false
+                        if (_binding != null) {
+                            binding.relPlayerDownload.apply {
+                                setIconResource(R.drawable.ic_download)
+                                text = getString(R.string.download)
+                            }
+                        }
+                        Snackbar.make(binding.root, R.string.deleted, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun updateFullscreenOrientation() {
@@ -1226,6 +1258,24 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         setPlayerDefaults()
 
+        // check if the video is downloaded to update the download button state
+        lifecycleScope.launch(Dispatchers.IO) {
+            val downloaded = DatabaseHolder.Database.downloadDao().exists(videoId)
+            withContext(Dispatchers.Main) {
+                isDownloaded = downloaded
+                if (_binding == null) return@withContext
+                binding.relPlayerDownload.apply {
+                    if (isDownloaded) {
+                        setIconResource(R.drawable.ic_download_filled)
+                        text = getString(R.string.downloaded)
+                    } else {
+                        setIconResource(R.drawable.ic_download)
+                        text = getString(R.string.download)
+                    }
+                }
+            }
+        }
+
         binding.player.apply {
             useController = false
             player = playerController
@@ -1259,7 +1309,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             )
             playerChannelSubCount.isVisible = streams.uploaderSubscriberCount >= 0
 
-            relPlayerDownload.isVisible = !streams.isLive && !isOffline
+            relPlayerDownload.isVisible = !streams.isLive
         }
         playerControlsBinding.exoTitle.text = streams.title
 
