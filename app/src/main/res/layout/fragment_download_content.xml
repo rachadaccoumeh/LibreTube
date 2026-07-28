@@ -47,13 +47,37 @@
                 style="?materialButtonTonalStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:paddingHorizontal="10dp"
                 android:text="@string/filter"
                 app:icon="@drawable/ic_filter_sort"
                 app:iconGravity="textEnd" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pause_all"
+                style="?attr/materialIconButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="@string/pause_all"
+                android:tooltipText="@string/pause_all"
+                app:icon="@drawable/ic_pause"
+                tools:targetApi="o" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/delete_all"
+                style="?attr/materialIconButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="@string/delete_all"
+                android:tooltipText="@string/delete_all"
+                app:icon="@drawable/ic_delete"
+                app:strokeColor="?attr/colorError"
+                app:iconTint="?attr/colorError"
+                tools:targetApi="o" />
 
         </LinearLayout>
 
@@ -92,16 +116,16 @@
     </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/delete_all"
+        android:id="@+id/resume_all"
         style="?attr/floatingActionButtonSmallSecondaryStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="end"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
-        android:contentDescription="@string/delete_all"
-        android:src="@drawable/ic_delete"
-        android:tooltipText="@string/delete"
+        android:contentDescription="@string/resume_all_incomplete"
+        android:src="@drawable/ic_download"
+        android:tooltipText="@string/resume_all_incomplete"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/shuffle_all"
         app:layout_constraintEnd_toEndOf="parent"

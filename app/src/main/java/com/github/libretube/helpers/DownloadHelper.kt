@@ -37,7 +37,7 @@ object DownloadHelper {
     const val SUBTITLE_DIR = "subtitle"
     const val THUMBNAIL_DIR = "thumbnail"
     const val PLAYLIST_THUMBNAIL_DIR = "playlist_thumbnail"
-    const val DOWNLOAD_CHUNK_SIZE = 8L * 1024
+    const val DOWNLOAD_CHUNK_SIZE = 256L * 1024
     const val DEFAULT_TIMEOUT = 15 * 1000
     private const val VIDEO_MIMETYPE = "video/*"
 

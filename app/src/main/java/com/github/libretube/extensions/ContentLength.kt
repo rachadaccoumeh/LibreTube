@@ -11,15 +11,18 @@ suspend fun URL.getContentLength(): Long? {
             val connection = openConnection() as HttpURLConnection
             connection.setRequestProperty("Range", "bytes=0-")
 
-            val value = connection.getHeaderField("content-length")
-                // If connection accepts range header, try to get total bytes
-                ?: connection.getHeaderField("content-range").split("/")[1]
+            val contentLength = connection.getHeaderField("content-length")
+            val contentRange = connection.getHeaderField("content-range")
+            android.util.Log.i("ContentLength", "getContentLength: code=${connection.responseCode}, content-length=$contentLength, content-range=$contentRange")
+
+            val value = contentLength
+                ?: contentRange?.split("/")?.getOrNull(1)
 
             connection.disconnect()
-            value.toLong()
+            if (value != null) value.toLong() else null
         }
     } catch (e: Exception) {
-        e.printStackTrace()
+        android.util.Log.i("ContentLength", "getContentLength failed: ${e.message}")
     }
 
     return null

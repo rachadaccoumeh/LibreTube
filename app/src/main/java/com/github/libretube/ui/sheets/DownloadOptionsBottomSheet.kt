@@ -12,10 +12,13 @@ import com.github.libretube.extensions.serializable
 import com.github.libretube.extensions.toID
 import com.github.libretube.helpers.BackgroundHelper
 import com.github.libretube.helpers.ContextHelper
+import com.github.libretube.helpers.DownloadHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.obj.ShareData
 import com.github.libretube.parcelable.PlayerData
+import com.github.libretube.services.DownloadService
 import com.github.libretube.ui.activities.NoInternetActivity
+import com.github.libretube.ui.dialogs.AddToPlaylistDialog
 import com.github.libretube.ui.dialogs.ShareDialog
 import com.github.libretube.ui.fragments.DownloadTab
 import com.github.libretube.util.PlayingQueue
@@ -27,9 +30,11 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
         val videoId = streamItem.url!!.toID()
         val downloadTab = arguments?.serializable<DownloadTab>(IntentData.downloadTab)!!
         val playlistId = arguments?.getString(IntentData.playlistId)
+        val incompleteIds = arguments?.getIntArray("incompleteIds")
 
         val options = mutableListOf(
             R.string.playOnBackground,
+            R.string.addToPlaylist,
             R.string.share,
             R.string.delete
         )
@@ -45,6 +50,16 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
             options += R.string.add_to_queue
         }
 
+        // Add enqueue/dequeue option if there are incomplete downloads
+        if (incompleteIds != null && incompleteIds.isNotEmpty()) {
+            val isEnqueued = incompleteIds.any { id -> DownloadService.isItemIdInQueue(id) }
+            if (isEnqueued) {
+                options += R.string.dequeue_download
+            } else {
+                options += R.string.enqueue_download
+            }
+        }
+
         setSimpleItems(options.map { getString(it) }) { which ->
             val playerData = PlayerData(
                 videoId,
@@ -56,6 +71,15 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
             when (options[which]) {
                 R.string.playOnBackground -> {
                     BackgroundHelper.playOnBackground(requireContext(), playerData)
+                }
+
+                R.string.addToPlaylist -> {
+                    AddToPlaylistDialog().apply {
+                        arguments = bundleOf(IntentData.videoInfo to streamItem)
+                    }.show(
+                        parentFragmentManager,
+                        AddToPlaylistDialog::class.java.name
+                    )
                 }
 
                 R.string.go_to_video -> {
@@ -85,6 +109,19 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
 
                 R.string.add_to_queue -> {
                     PlayingQueue.add(streamItem)
+                }
+
+                R.string.enqueue_download -> {
+                    DownloadHelper.startDownloadService(requireContext())
+                    incompleteIds?.forEach { id ->
+                        DownloadService.enqueueItem(id)
+                    }
+                }
+
+                R.string.dequeue_download -> {
+                    incompleteIds?.forEach { id ->
+                        DownloadService.dequeueItem(id)
+                    }
                 }
             }
         }

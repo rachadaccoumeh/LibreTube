@@ -149,6 +149,7 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
     // Either downloadTab or downloadPlaylistId are set, never both at the same time!
     private lateinit var downloadTab: DownloadTab
     private var downloadPlaylistId: String? = null
+    private var latestDownloads: List<DownloadWithItems> = emptyList()
 
     private var selectedSortType
         get() = PreferenceHelper.getInt(
@@ -172,6 +173,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         var isBound = false
         var job: Job? = null
         var pendingResumeIds: IntArray? = null
+        var pendingResumeAll = false
+        var pendingPauseAll = false
 
         override fun onServiceConnected(name: ComponentName?, iBinder: IBinder?) {
             binder = iBinder as DownloadService.LocalBinder
@@ -184,11 +187,23 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
             }
             // If there are pending ids to resume, do it now that service is connected
             pendingResumeIds?.let { ids ->
-                android.util.Log.e("DownloadsFragment", "onServiceConnected: resuming pending ids=$ids")
+                android.util.Log.i("DownloadsFragment", "onServiceConnected: resuming pending ids=$ids")
                 binder?.getService()?.let { service ->
                     ids.forEach { id -> service.resume(id) }
                 }
                 pendingResumeIds = null
+            }
+            // If resumeAll was requested before service was bound
+            if (pendingResumeAll) {
+                android.util.Log.i("DownloadsFragment", "onServiceConnected: resuming all incomplete")
+                binder?.getService()?.resumeAllIncomplete()
+                pendingResumeAll = false
+            }
+            // If pauseAll was requested before service was bound
+            if (pendingPauseAll) {
+                android.util.Log.i("DownloadsFragment", "onServiceConnected: pausing all")
+                binder?.getService()?.pauseAll()
+                pendingPauseAll = false
             }
         }
 
@@ -228,28 +243,28 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                     .filter { item -> item.downloadSize <= 0 || (if (item.path.exists()) item.path.fileSize() else 0) != item.downloadSize }
                     .map { item -> item.id }
 
-                android.util.Log.e("DownloadsFragment", "Resume click: downloadItems=${it.downloadItems.size}, filtered ids=$ids")
+                android.util.Log.i("DownloadsFragment", "Resume click: downloadItems=${it.downloadItems.size}, filtered ids=$ids")
                 it.downloadItems.forEach { item ->
-                    android.util.Log.e("DownloadsFragment", "  item id=${item.id}, downloadSize=${item.downloadSize}, fileSize=${if (item.path.exists()) item.path.fileSize() else 0}, exists=${item.path.exists()}, url=${item.url}")
+                    android.util.Log.i("DownloadsFragment", "  item id=${item.id}, downloadSize=${item.downloadSize}, fileSize=${if (item.path.exists()) item.path.fileSize() else 0}, exists=${item.path.exists()}, url=${item.url}")
                 }
 
                 if (ids.isEmpty()) {
-                    android.util.Log.e("DownloadsFragment", "No items to resume — all complete")
+                    android.util.Log.i("DownloadsFragment", "No items to resume — all complete")
                     return@DownloadsAdapter false
                 }
 
                 if (!serviceConnection.isBound) {
-                    android.util.Log.e("DownloadsFragment", "Service not bound, starting service and binding")
+                    android.util.Log.i("DownloadsFragment", "Service not bound, starting service and binding")
                     serviceConnection.pendingResumeIds = ids.toIntArray()
                     DownloadHelper.startDownloadService(requireContext())
                     bindDownloadService(ids.toIntArray())
                     return@DownloadsAdapter true
                 }
 
-                android.util.Log.e("DownloadsFragment", "Service is bound, binder=$binder")
+                android.util.Log.i("DownloadsFragment", "Service is bound, binder=$binder")
                 binder?.getService()?.let { service ->
                     isDownloading = ids.any { id -> service.isDownloading(id) }
-                    android.util.Log.e("DownloadsFragment", "isDownloading=$isDownloading, calling ${if (isDownloading) "pause" else "resume"} for ids=$ids")
+                    android.util.Log.i("DownloadsFragment", "isDownloading=$isDownloading, calling ${if (isDownloading) "pause" else "resume"} for ids=$ids")
 
                     ids.forEach { id ->
                         if (isDownloading) {
@@ -280,73 +295,94 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                 playlist.downloadVideos.map { it.videoId }
             }
 
-            val downloads = withContext(Dispatchers.IO) {
-                Database.downloadDao().getAll()
-            }.let { downloads ->
-                if (downloadTab != DownloadTab.PLAYLIST) downloads.filterByTab(downloadTab)
-                else downloads.filter { playlistItems.orEmpty().contains(it.download.videoId) }
-            }
+            // Observe DB changes for auto-refresh
+            Database.downloadDao().getAllDownloadsFlow().collect { allDownloads ->
+                val downloads = if (downloadTab != DownloadTab.PLAYLIST) allDownloads.filterByTab(downloadTab)
+                else allDownloads.filter { playlistItems.orEmpty().contains(it.download.videoId) }
 
-            submitDownloadList(downloads)
-
-            binding.sortType.setOnClickListener {
-                BaseBottomSheet().setSimpleItems(sortOptions.toList()) { index ->
-                    if (index == selectedSortType) return@setSimpleItems
-                    selectedSortType = index
-
-                    binding.sortType.text = sortOptions[index]
-                    submitDownloadList(downloads)
-                }.show(childFragmentManager)
-            }
-
-            binding.filterType.setOnClickListener {
-                val currentFilter = DownloadFilter.entries.getOrNull(selectedFilter) ?: DownloadFilter.ALL
-                if (currentFilter != DownloadFilter.ALL) {
-                    // Filter is active — click clears it
-                    selectedFilter = DownloadFilter.ALL.ordinal
-                    updateFilterButtonText(filterOptions)
-                    submitDownloadList(downloads)
-                } else {
-                    BaseBottomSheet().setSimpleItems(filterOptions.toList()) { index ->
-                        selectedFilter = index
-                        updateFilterButtonText(filterOptions)
-                        submitDownloadList(downloads)
-                    }.show(childFragmentManager)
-                }
-            }
-
-            downloadsModel.searchQuery.observe(viewLifecycleOwner) {
+                latestDownloads = downloads
                 submitDownloadList(downloads)
             }
-
-            binding.downloadsRecView.setOnDismissListener { position ->
-                adapter.showDeleteDialog(requireContext(), position)
-                // put the item back to the center, as it's currently out of the screen
-                adapter.restoreItem(position)
-            }
-
-            binding.downloadsRecView.adapter?.registerAdapterDataObserver(
-                object : RecyclerView.AdapterDataObserver() {
-                    override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
-                        super.onItemRangeRemoved(positionStart, itemCount)
-                        toggleVisibilities()
-                    }
-
-                    override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                        super.onItemRangeInserted(positionStart, itemCount)
-                        // ensure that after searching with no results,
-                        // the nothing here placeholder is hidden again so that
-                        // results are visible for the queries made afterwards
-                        toggleVisibilities()
-                    }
-                }
-            )
-
-            toggleVisibilities()
         }
+
+        binding.sortType.setOnClickListener {
+            BaseBottomSheet().setSimpleItems(sortOptions.toList()) { index ->
+                if (index == selectedSortType) return@setSimpleItems
+                selectedSortType = index
+
+                binding.sortType.text = sortOptions[index]
+                submitDownloadList(latestDownloads)
+            }.show(childFragmentManager)
+        }
+
+        binding.filterType.setOnClickListener {
+            val currentFilter = DownloadFilter.entries.getOrNull(selectedFilter) ?: DownloadFilter.ALL
+            if (currentFilter != DownloadFilter.ALL) {
+                // Filter is active — click clears it
+                selectedFilter = DownloadFilter.ALL.ordinal
+                updateFilterButtonText(filterOptions)
+                submitDownloadList(latestDownloads)
+            } else {
+                BaseBottomSheet().setSimpleItems(filterOptions.toList()) { index ->
+                    selectedFilter = index
+                    updateFilterButtonText(filterOptions)
+                    submitDownloadList(latestDownloads)
+                }.show(childFragmentManager)
+            }
+        }
+
+        downloadsModel.searchQuery.observe(viewLifecycleOwner) {
+            submitDownloadList(latestDownloads)
+        }
+
+        binding.downloadsRecView.setOnDismissListener { position ->
+            adapter.showDeleteDialog(requireContext(), position)
+            // put the item back to the center, as it's currently out of the screen
+            adapter.restoreItem(position)
+        }
+
+        binding.downloadsRecView.adapter?.registerAdapterDataObserver(
+            object : RecyclerView.AdapterDataObserver() {
+                override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
+                    super.onItemRangeRemoved(positionStart, itemCount)
+                    toggleVisibilities()
+                }
+
+                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                    super.onItemRangeInserted(positionStart, itemCount)
+                    // ensure that after searching with no results,
+                    // the nothing here placeholder is hidden again so that
+                    // results are visible for the queries made afterwards
+                    toggleVisibilities()
+                }
+            }
+        )
+
+        toggleVisibilities()
 
         binding.deleteAll.setOnClickListener {
             showDeleteAllDialog(binding.root.context, adapter)
+        }
+
+        binding.pauseAll.setOnClickListener {
+            if (serviceConnection.isBound) {
+                binder?.getService()?.pauseAll()
+            } else {
+                // Start the service briefly to pause all, then it will stop if nothing is running
+                DownloadHelper.startDownloadService(requireContext())
+                serviceConnection.pendingPauseAll = true
+                bindDownloadService()
+            }
+        }
+
+        binding.resumeAll.setOnClickListener {
+            if (!serviceConnection.isBound) {
+                serviceConnection.pendingResumeAll = true
+                DownloadHelper.startDownloadService(requireContext())
+                bindDownloadService()
+            } else {
+                binder?.getService()?.resumeAllIncomplete()
+            }
         }
 
         binding.shuffleAll.setOnClickListener {
@@ -423,8 +459,17 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         binding.downloadsEmpty.isVisible = isEmpty
         // Keep container visible if filtered so user can see/clear the filter
         binding.downloadsContainer.isGone = isEmpty && !isFiltered
-        binding.deleteAll.isGone = isEmpty
+        binding.deleteAll.isVisible = !isEmpty
+        binding.pauseAll.isVisible = !isEmpty
         binding.shuffleAll.isGone = isEmpty
+
+        // Show resume_all FAB only if there are incomplete downloads
+        val hasIncomplete = adapter.currentList.any { downloadWithItems ->
+            downloadWithItems.downloadItems.any { item ->
+                item.downloadSize <= 0 || (if (item.path.exists()) item.path.fileSize() else 0) < item.downloadSize
+            }
+        }
+        binding.resumeAll.isVisible = hasIncomplete
     }
 
     private fun showDeleteAllDialog(context: Context, adapter: DownloadsAdapter) {
@@ -453,8 +498,14 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         super.onStart()
     }
 
+    private fun reloadDownloads() {
+        if (!isAdded) return
+        submitDownloadList(latestDownloads)
+    }
+
     override fun onResume() {
         super.onResume()
+        reloadDownloads()
 
         val filter = IntentFilter().apply {
             addAction(DownloadService.ACTION_SERVICE_STARTED)
