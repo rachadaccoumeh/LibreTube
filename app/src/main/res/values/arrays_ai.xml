@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="ai_provider_entries">
+        <item>@string/ai_provider_openai</item>
+        <item>@string/ai_provider_gemini</item>
+        <item>@string/ai_provider_ollama</item>
+        <item>@string/ai_provider_custom</item>
+    </string-array>
+    <string-array name="ai_provider_values">
+        <item>openai</item>
+        <item>gemini</item>
+        <item>ollama</item>
+        <item>custom</item>
+    </string-array>
+</resources>

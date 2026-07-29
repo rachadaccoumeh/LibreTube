@@ -180,6 +180,9 @@ dependencies {
     /* AndroidX Paging */
     implementation(libs.androidx.paging)
 
+    /* Markdown rendering */
+    implementation(libs.markwon)
+
     /* Testing */
     testImplementation(libs.junit)
 }

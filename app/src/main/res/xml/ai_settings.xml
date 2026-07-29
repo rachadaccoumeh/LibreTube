@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ListPreference
+        app:key="ai_provider"
+        app:title="@string/ai_provider"
+        app:summary="%s"
+        android:defaultValue="openai"
+        app:entries="@array/ai_provider_entries"
+        app:entryValues="@array/ai_provider_values" />
+
+    <EditTextPreference
+        app:key="ai_api_url"
+        app:title="@string/ai_api_url"
+        android:defaultValue="https://api.openai.com/v1" />
+
+    <EditTextPreference
+        app:key="ai_api_key"
+        app:title="@string/ai_api_key" />
+
+    <EditTextPreference
+        app:key="ai_model"
+        app:title="@string/ai_model"
+        android:defaultValue="gpt-4o-mini" />
+
+</PreferenceScreen>

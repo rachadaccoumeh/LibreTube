@@ -57,6 +57,7 @@ import com.github.libretube.api.obj.Streams
 import com.github.libretube.compat.PictureInPictureCompat
 import com.github.libretube.compat.PictureInPictureParamsCompat
 import com.github.libretube.constants.IntentData
+import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.FragmentPlayerBinding
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.enums.FileType
@@ -77,6 +78,7 @@ import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PlayerHelper.getCurrentSegment
 import com.github.libretube.helpers.PlayerStateHelper
+import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ThemeHelper
 import com.github.libretube.helpers.WindowHelper
 import com.github.libretube.obj.ShareData
@@ -102,6 +104,7 @@ import com.github.libretube.ui.models.ChaptersViewModel
 import com.github.libretube.ui.models.CommentsViewModel
 import com.github.libretube.ui.models.CommonPlayerViewModel
 import com.github.libretube.ui.models.PlayerViewModel
+import com.github.libretube.ui.sheets.AiChatBottomSheet
 import com.github.libretube.ui.sheets.CommentsSheet
 import com.github.libretube.util.OfflineTimeFrameReceiver
 import com.github.libretube.util.OnlineTimeFrameReceiver
@@ -338,6 +341,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
             maybeStreams?.let { streams ->
                 this@PlayerFragment.streams = streams
+                commonPlayerViewModel.clearAiState()
                 viewModel.segments.postValue(emptyList())
                 updatePlayerView()
             }
@@ -647,6 +651,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 }
 
                 this.streams = streams
+                commonPlayerViewModel.clearAiState()
                 updatePlayerView()
             }
         }
@@ -834,6 +839,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
 
+        binding.relPlayerAi.setOnClickListener {
+            if (!this::streams.isInitialized) return@setOnClickListener
+            openAiChat()
+        }
         binding.relPlayerScreenshot.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
             val surfaceView =
@@ -860,6 +869,52 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
 
         binding.descriptionLayout.handleLink = this::handleLink
+
+        applyPlayerActionStyle()
+    }
+
+    private fun applyPlayerActionStyle() {
+        val iconOnly = PreferenceHelper.getBoolean(
+            PreferenceKeys.PLAYER_ICON_ACTIONS, false
+        )
+
+        val buttons = listOf(
+            binding.relPlayerShare,
+            binding.relPlayerDownload,
+            binding.relPlayerAi,
+            binding.relPlayerSave,
+            binding.relPlayerBackground,
+            binding.relPlayerPip,
+            binding.relPlayerScreenshot
+        )
+
+        for (btn in buttons) {
+            if (iconOnly) {
+                btn.text = null
+                btn.iconSize = 24f.dpToPx()
+            }
+            // Re-apply style by setting visibility helper — MaterialButton style
+            // can't be changed at runtime, so we manually adjust properties
+            if (iconOnly) {
+                btn.background = null
+                btn.setPadding(0, 0, 0, 0)
+                btn.minimumWidth = 0
+                btn.minimumHeight = 0
+                val size = 48f.dpToPx()
+                btn.layoutParams = btn.layoutParams.apply {
+                    width = size
+                    height = size
+                    if (this is android.widget.LinearLayout.LayoutParams) {
+                        marginStart = 2
+                        marginEnd = 2
+                    }
+                }
+            }
+        }
+    }
+
+    private fun Float.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
     }
 
     private fun updateMaxSheetHeight() {
@@ -891,6 +946,19 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         NavigationHelper.openAudioPlayerFragment(requireContext(), offlinePlayer = isOffline)
     }
 
+    private fun openAiChat() {
+        updateMaxSheetHeight()
+        AiChatBottomSheet(
+            streams = streams,
+            videoId = videoId,
+            onSeekTo = { timestampMs ->
+                if (::playerController.isInitialized) {
+                    playerController.seekTo(timestampMs)
+                }
+            }
+        ).show(childFragmentManager, null)
+    }
+
     private fun showDeleteDownloadDialog() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.delete)
@@ -906,7 +974,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                         if (_binding != null) {
                             binding.relPlayerDownload.apply {
                                 setIconResource(R.drawable.ic_download)
-                                text = getString(R.string.download)
+                                if (!PreferenceHelper.getBoolean(PreferenceKeys.PLAYER_ICON_ACTIONS, false)) {
+                                    text = getString(R.string.download)
+                                }
                             }
                         }
                         Snackbar.make(binding.root, R.string.deleted, Snackbar.LENGTH_SHORT).show()
@@ -1051,6 +1121,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         if (closedVideo) {
             closedVideo = false
         }
+
+        // re-apply player action button style in case it was changed in settings
+        applyPlayerActionStyle()
 
         // re-enable the autoplay countdown
         setAutoPlayCountdownEnabled(PlayerHelper.autoPlayCountdown)
@@ -1267,10 +1340,14 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 binding.relPlayerDownload.apply {
                     if (isDownloaded) {
                         setIconResource(R.drawable.ic_download_filled)
-                        text = getString(R.string.downloaded)
+                        if (!PreferenceHelper.getBoolean(PreferenceKeys.PLAYER_ICON_ACTIONS, false)) {
+                            text = getString(R.string.downloaded)
+                        }
                     } else {
                         setIconResource(R.drawable.ic_download)
-                        text = getString(R.string.download)
+                        if (!PreferenceHelper.getBoolean(PreferenceKeys.PLAYER_ICON_ACTIONS, false)) {
+                            text = getString(R.string.download)
+                        }
                     }
                 }
             }
