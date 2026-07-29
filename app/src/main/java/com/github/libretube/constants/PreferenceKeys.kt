@@ -138,6 +138,7 @@ object PreferenceKeys {
 
     // Player appearance
     const val PLAYER_ICON_ACTIONS = "player_icon_actions"
+    const val PLAYER_ACTIONS_ITEMS = "player_actions_items"
 
     // Internally saved data / not a preference
     const val ERROR_LOG = "error_log"

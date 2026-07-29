@@ -13,6 +13,7 @@ import com.github.libretube.compat.PictureInPictureCompat
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.helpers.LocaleHelper
 import com.github.libretube.ui.base.BasePreferenceFragment
+import com.github.libretube.ui.dialogs.PlayerActionsOptionsDialog
 
 class PlayerSettings : BasePreferenceFragment() {
 
@@ -49,6 +50,12 @@ class PlayerSettings : BasePreferenceFragment() {
         }
 
         alternativePipControls?.isVisible = pipAvailable
+
+        val playerActions = findPreference<Preference>(PreferenceKeys.PLAYER_ACTIONS_ITEMS)
+        playerActions?.setOnPreferenceClickListener {
+            PlayerActionsOptionsDialog().show(childFragmentManager, null)
+            true
+        }
     }
 
     private fun setupSubtitlePref(preference: ListPreference) {

@@ -77,6 +77,7 @@ import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PlayerHelper.getCurrentSegment
+import com.github.libretube.helpers.PlayerActionsHelper
 import com.github.libretube.helpers.PlayerStateHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ThemeHelper
@@ -878,7 +879,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             PreferenceKeys.PLAYER_ICON_ACTIONS, false
         )
 
-        val buttons = listOf(
+        val allButtons = listOf(
             binding.relPlayerShare,
             binding.relPlayerDownload,
             binding.relPlayerAi,
@@ -888,14 +889,26 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             binding.relPlayerScreenshot
         )
 
-        for (btn in buttons) {
+        // Apply order and visibility from preferences
+        val actionItems = PlayerActionsHelper.getPlayerActions(requireContext())
+        val container = binding.optionsLL
+        val buttonMap: Map<PlayerActionsHelper.PlayerAction, com.google.android.material.button.MaterialButton> = mapOf(
+            PlayerActionsHelper.PlayerAction.SHARE to binding.relPlayerShare,
+            PlayerActionsHelper.PlayerAction.DOWNLOAD to binding.relPlayerDownload,
+            PlayerActionsHelper.PlayerAction.AI to binding.relPlayerAi,
+            PlayerActionsHelper.PlayerAction.SAVE to binding.relPlayerSave,
+            PlayerActionsHelper.PlayerAction.BACKGROUND to binding.relPlayerBackground,
+            PlayerActionsHelper.PlayerAction.PIP to binding.relPlayerPip,
+            PlayerActionsHelper.PlayerAction.SCREENSHOT to binding.relPlayerScreenshot
+        )
+        // Remove all buttons, then re-add in the configured order
+        for (btn in allButtons) container.removeView(btn)
+        for (item in actionItems) {
+            val btn = buttonMap[item.action] ?: continue
+            btn.visibility = if (item.isVisible) View.VISIBLE else View.GONE
             if (iconOnly) {
                 btn.text = null
                 btn.iconSize = 24f.dpToPx()
-            }
-            // Re-apply style by setting visibility helper — MaterialButton style
-            // can't be changed at runtime, so we manually adjust properties
-            if (iconOnly) {
                 btn.background = null
                 btn.setPadding(0, 0, 0, 0)
                 btn.minimumWidth = 0
@@ -910,6 +923,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                     }
                 }
             }
+            container.addView(btn)
         }
     }
 

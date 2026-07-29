@@ -183,6 +183,8 @@
     <string name="player_summary">Defaults and behavior</string>
     <string name="player_icon_actions">Icon-only action buttons</string>
     <string name="player_icon_actions_summary">Show player actions as icons without text or button background</string>
+    <string name="player_actions">Player action buttons</string>
+    <string name="player_actions_summary">Customize and reorder player action buttons</string>
     <string name="seek_increment">Seek increment</string>
     <string name="pauseOnScreenOff">Auto-pause</string>
     <string name="pauseOnScreenOff_summary">Pause playback when the screen is turned off</string>

@@ -49,6 +49,12 @@
             app:key="player_icon_actions"
             app:title="@string/player_icon_actions" />
 
+        <Preference
+            android:icon="@drawable/ic_list"
+            android:summary="@string/player_actions_summary"
+            app:key="player_actions_items"
+            app:title="@string/player_actions" />
+
         <com.github.libretube.ui.views.SliderPreference
             android:icon="@drawable/ic_skip"
             app:defValue="10.0"
