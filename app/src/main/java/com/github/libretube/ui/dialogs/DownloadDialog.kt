@@ -19,6 +19,9 @@ import com.github.libretube.api.obj.Streams
 import com.github.libretube.api.obj.Subtitle
 import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.DialogDownloadBinding
+import com.github.libretube.db.DatabaseHolder
+import com.github.libretube.db.obj.DownloadItem
+import com.github.libretube.enums.FileType
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.getWhileDigit
 import com.github.libretube.extensions.sha256Sum
@@ -70,11 +73,14 @@ class DownloadDialog : DialogFragment() {
                 context?.toastFromMainDispatcher(e.localizedMessage.orEmpty())
                 return@launch
             }
-            initDownloadOptions(binding, response)
+            val existingItems = withContext(Dispatchers.IO) {
+                DatabaseHolder.Database.downloadDao().getDownloadById(videoId)?.downloadItems.orEmpty()
+            }
+            initDownloadOptions(binding, response, existingItems)
         }
     }
 
-    private fun initDownloadOptions(binding: DialogDownloadBinding, streams: Streams) {
+    private fun initDownloadOptions(binding: DialogDownloadBinding, streams: Streams, existingItems: List<DownloadItem>) {
         binding.videoTitle.text = streams.title
 
         val videoStreams = streams.videoStreams.filter {
@@ -102,7 +108,11 @@ class DownloadDialog : DialogFragment() {
 
         binding.videoSpinner.items = videoStreams.map {
             val fileSize = Formatter.formatShortFileSize(context, it.contentLength)
-            "${it.quality} ${it.codec} ($fileSize)"
+            val downloaded = existingItems.any { item ->
+                item.type == FileType.VIDEO && item.format == it.format && item.quality == it.quality
+            }
+            val suffix = if (downloaded) " — ✓ ${getString(R.string.already_downloaded)}" else ""
+            "${it.quality} ${it.codec} ($fileSize)$suffix"
         }.toMutableList().also {
             it.add(0, getString(R.string.no_video))
         }
@@ -113,7 +123,11 @@ class DownloadDialog : DialogFragment() {
                 ?.let { cl -> Formatter.formatShortFileSize(context, cl) }
             val infoStr = listOfNotNull(it.audioTrackLocale, fileSize)
                 .joinToString(", ")
-            "${it.quality} ${it.format} ($infoStr)"
+            val downloaded = existingItems.any { item ->
+                item.type == FileType.AUDIO && item.format == it.format && item.quality == it.quality
+            }
+            val suffix = if (downloaded) " — ✓ ${getString(R.string.already_downloaded)}" else ""
+            "${it.quality} ${it.format} ($infoStr)$suffix"
         }.toMutableList().also {
             it.add(0, getString(R.string.no_audio))
         }
@@ -123,6 +137,41 @@ class DownloadDialog : DialogFragment() {
         }
 
         restorePreviousSelections(binding, videoStreams, audioStreams, subtitles)
+
+        // Show warning icon on spinners when selected item is already downloaded
+        fun updateVideoWarning() {
+            val pos = binding.videoSpinner.selectedItemPosition - 1
+            val stream = videoStreams.getOrNull(pos)
+            val downloaded = stream != null && existingItems.any { item ->
+                item.type == FileType.VIDEO && item.format == stream.format && item.quality == stream.quality
+            }
+            if (downloaded) {
+                binding.videoSpinner.setEndIconDrawable(android.R.drawable.stat_sys_warning)
+            } else {
+                binding.videoSpinner.clearEndIcon()
+            }
+        }
+
+        fun updateAudioWarning() {
+            val pos = binding.audioSpinner.selectedItemPosition - 1
+            val stream = audioStreams.getOrNull(pos)
+            val downloaded = stream != null && existingItems.any { item ->
+                item.type == FileType.AUDIO && item.format == stream.format && item.quality == stream.quality
+            }
+            if (downloaded) {
+                binding.audioSpinner.setEndIconDrawable(android.R.drawable.stat_sys_warning)
+            } else {
+                binding.audioSpinner.clearEndIcon()
+            }
+        }
+
+        // Initial state after restoring previous selections
+        updateVideoWarning()
+        updateAudioWarning()
+
+        // Update warning icon when user changes selection
+        binding.videoSpinner.setOnSelectionChangeListener { updateVideoWarning() }
+        binding.audioSpinner.setOnSelectionChangeListener { updateAudioWarning() }
 
         onDownloadConfirm = onDownloadConfirm@{
             val videoPosition = binding.videoSpinner.selectedItemPosition - 1
@@ -138,21 +187,52 @@ class DownloadDialog : DialogFragment() {
             val audioStream = audioStreams.getOrNull(audioPosition)
             val subtitle = subtitles.getOrNull(subtitlePosition)
 
+            val videoAlreadyDownloaded = videoStream != null && existingItems.any { item ->
+                item.type == FileType.VIDEO && item.format == videoStream.format && item.quality == videoStream.quality
+            }
+            val audioAlreadyDownloaded = audioStream != null && existingItems.any { item ->
+                item.type == FileType.AUDIO && item.format == audioStream.format && item.quality == audioStream.quality
+            }
+
+            if (videoAlreadyDownloaded || audioAlreadyDownloaded) {
+                val message = buildString {
+                    if (videoAlreadyDownloaded) append(getString(R.string.already_downloaded_video))
+                    if (videoAlreadyDownloaded && audioAlreadyDownloaded) append("\n\n")
+                    if (audioAlreadyDownloaded) append(getString(R.string.already_downloaded_audio))
+                }
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.download)
+                    .setMessage(message)
+                    .setPositiveButton(R.string.download) { _, _ ->
+                        saveSelections(videoStream, audioStream, subtitle)
+                        startDownload(videoStream, audioStream, subtitle)
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
+                return@onDownloadConfirm
+            }
+
             saveSelections(videoStream, audioStream, subtitle)
-
-            val downloadData = DownloadData(
-                videoId = videoId,
-                videoFormat = videoStream?.format,
-                videoQuality = videoStream?.quality,
-                audioFormat = audioStream?.format,
-                audioQuality = audioStream?.quality,
-                audioLanguage = audioStream?.audioTrackLocale,
-                subtitleCode = subtitle?.code
-            )
-            DownloadHelper.startDownloadService(requireContext(), downloadData)
-
-            dismiss()
+            startDownload(videoStream, audioStream, subtitle)
         }
+    }
+
+    private fun startDownload(
+        videoStream: PipedStream?,
+        audioStream: PipedStream?,
+        subtitle: Subtitle?
+    ) {
+        val downloadData = DownloadData(
+            videoId = videoId,
+            videoFormat = videoStream?.format,
+            videoQuality = videoStream?.quality,
+            audioFormat = audioStream?.format,
+            audioQuality = audioStream?.quality,
+            audioLanguage = audioStream?.audioTrackLocale,
+            subtitleCode = subtitle?.code
+        )
+        DownloadHelper.startDownloadService(requireContext(), downloadData)
+        dismiss()
     }
 
     /**

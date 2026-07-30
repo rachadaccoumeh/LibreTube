@@ -45,6 +45,9 @@ interface DownloadDao {
     @Query("SELECT * FROM downloaditem")
     suspend fun getAllDownloadItems(): List<DownloadItem>
 
+    @Query("SELECT COUNT(*) FROM downloaditem WHERE videoId = :videoId")
+    suspend fun countDownloadItemsByVideoId(videoId: String): Int
+
     @Query("DELETE FROM downloaditem WHERE id = :id")
     suspend fun deleteDownloadItemById(id: Int)
 
