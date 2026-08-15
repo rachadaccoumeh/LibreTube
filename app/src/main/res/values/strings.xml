@@ -312,6 +312,10 @@
     <string name="pause_all">Pause all downloads</string>
     <string name="enqueue_download">Enqueue download</string>
     <string name="dequeue_download">Remove from queue</string>
+    <string name="verify_download">Verify download</string>
+    <string name="verify_download_success">Verified: all files match expected size</string>
+    <string name="verify_download_fixed">Fixed %1$d item(s), resuming download</string>
+    <string name="verify_download_error">Could not verify: failed to fetch stream info</string>
     <string name="renamePlaylist">Rename playlist</string>
     <string name="wifi">Wi-Fi</string>
     <string name="mobile_data">Mobile data</string>

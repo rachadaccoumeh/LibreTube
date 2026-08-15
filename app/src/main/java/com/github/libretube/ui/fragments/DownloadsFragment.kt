@@ -240,7 +240,10 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
             ) {
                 var isDownloading = false
                 val ids = it.downloadItems
-                    .filter { item -> item.downloadSize <= 0 || (if (item.path.exists()) item.path.fileSize() else 0) != item.downloadSize }
+                    .filter { item ->
+                        val fileSize = if (item.path.exists()) item.path.fileSize() else 0
+                        item.downloadSize <= 0 || fileSize < item.downloadSize || fileSize > item.downloadSize
+                    }
                     .map { item -> item.id }
 
                 android.util.Log.i("DownloadsFragment", "Resume click: downloadItems=${it.downloadItems.size}, filtered ids=$ids")
@@ -429,7 +432,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                         service?.isDownloading(di.id) == true
                     }
                     DownloadFilter.INCOMPLETE -> item.downloadItems.any { di ->
-                        di.downloadSize <= 0 || (if (di.path.exists()) di.path.fileSize() else 0) < di.downloadSize
+                        val fs = if (di.path.exists()) di.path.fileSize() else 0
+                        di.downloadSize <= 0 || fs < di.downloadSize || fs > di.downloadSize
                     }
                     DownloadFilter.ALL -> true
                 }
@@ -466,7 +470,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         // Show resume_all FAB only if there are incomplete downloads
         val hasIncomplete = adapter.currentList.any { downloadWithItems ->
             downloadWithItems.downloadItems.any { item ->
-                item.downloadSize <= 0 || (if (item.path.exists()) item.path.fileSize() else 0) < item.downloadSize
+                val fs = if (item.path.exists()) item.path.fileSize() else 0
+                item.downloadSize <= 0 || fs < item.downloadSize || fs > item.downloadSize
             }
         }
         binding.resumeAll.isVisible = hasIncomplete

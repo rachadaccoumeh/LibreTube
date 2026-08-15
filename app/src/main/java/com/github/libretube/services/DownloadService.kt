@@ -97,6 +97,8 @@ class DownloadService : LifecycleService() {
     private lateinit var summaryNotificationBuilder: Builder
 
     private val downloadQueue = SparseBooleanArray()
+    private val downloadJobs = mutableMapOf<Int, Job>()
+    private val activeCalls = java.util.concurrent.ConcurrentHashMap<Int, okhttp3.Call>()
     private val _downloadFlow = MutableSharedFlow<Pair<Int, DownloadStatus>>()
     val downloadFlow: SharedFlow<Pair<Int, DownloadStatus>> = _downloadFlow
 
@@ -261,6 +263,8 @@ class DownloadService : LifecycleService() {
         val notificationBuilder = getNotificationBuilder(item)
         setResumeNotification(notificationBuilder, item)
 
+        try {
+
         var totalRead = if (item.path.exists()) item.path.fileSize() else 0
         Log.i(TAG(), "downloadFile() — existing fileSize=$totalRead, downloadSize=${item.downloadSize}")
 
@@ -316,13 +320,21 @@ class DownloadService : LifecycleService() {
         }
 
         Log.i(TAG(), "downloadFile() — starting download loop: totalRead=$totalRead, downloadSize=${item.downloadSize}")
-        while (totalRead < item.downloadSize) {
+        var reachedEOF = false
+        while (downloadQueue[item.id] && totalRead < item.downloadSize) {
             try {
                 val previousRead = totalRead
-                totalRead = progressDownload(item, url, totalRead, notificationBuilder)
+                val (newTotal, eof) = progressDownload(item, url, totalRead, notificationBuilder)
+                totalRead = newTotal
+                reachedEOF = eof
                 if (totalRead == previousRead) {
                     // No progress made — startConnection failed after all retries
                     Log.i(TAG(), "downloadFile() — no progress, breaking loop")
+                    break
+                }
+                // If the server closed the stream (EOF), all data has been sent
+                if (reachedEOF) {
+                    Log.i(TAG(), "downloadFile() — EOF reached, breaking loop")
                     break
                 }
             } catch (_: CancellationException) {
@@ -335,19 +347,28 @@ class DownloadService : LifecycleService() {
             }
         }
 
+        // Download is complete ONLY if we got all expected bytes.
+        // EOF with fewer bytes means the connection dropped — treat as incomplete.
         val completed = item.downloadSize > 0 && totalRead >= item.downloadSize
-        Log.i(TAG(), "downloadFile() finished for id=${item.id}, totalRead=$totalRead, downloadSize=${item.downloadSize}, completed=$completed")
-        if (completed) {
-            _downloadFlow.emit(item.id to DownloadStatus.Completed)
-            failedDownloads.remove(item.id)
-        } else {
-            _downloadFlow.emit(item.id to DownloadStatus.Paused)
-            if (totalRead == 0L) {
-                failedDownloads.add(item.id)
-            }
-        }
+        Log.i(TAG(), "downloadFile() finished for id=${item.id}, totalRead=$totalRead, downloadSize=${item.downloadSize}, reachedEOF=$reachedEOF, completed=$completed")
 
-        setPauseNotification(notificationBuilder, item, completed)
+        // Use NonCancellable so notification and status emission work even
+        // when the coroutine was cancelled by pause()
+        Log.i(TAG(), "downloadFile() — entering NonCancellable block, completed=$completed")
+        withContext(kotlinx.coroutines.NonCancellable) {
+            if (completed) {
+                _downloadFlow.emit(item.id to DownloadStatus.Completed)
+                failedDownloads.remove(item.id)
+            } else {
+                _downloadFlow.emit(item.id to DownloadStatus.Paused)
+                if (totalRead == 0L) {
+                    failedDownloads.add(item.id)
+                }
+            }
+
+            setPauseNotification(notificationBuilder, item, completed)
+            Log.i(TAG(), "downloadFile() — setPauseNotification done, completed=$completed")
+        }
 
         downloadQueue[item.id] = false
 
@@ -362,7 +383,8 @@ class DownloadService : LifecycleService() {
 
             val dbItem = Database.downloadDao().findDownloadItemById(id)
             // Skip stale placeholder items (null URL + no size) and already-complete items
-            if (dbItem != null && dbItem.url != null && (dbItem.downloadSize <= 0L || (if (dbItem.path.exists()) dbItem.path.fileSize() else 0) < dbItem.downloadSize)) {
+            val dbFileSize = if (dbItem?.path?.exists() == true) dbItem.path.fileSize() else 0
+            if (dbItem != null && dbItem.url != null && (dbItem.downloadSize <= 0L || dbFileSize < dbItem.downloadSize || dbFileSize > dbItem.downloadSize)) {
                 Log.i(TAG(), "  auto-resume: calling resume($id)")
                 resume(id)
                 return
@@ -372,6 +394,9 @@ class DownloadService : LifecycleService() {
         // if no new download was enqueued (i.e. there's no paused/stopped download left),
         // look if any downloads are still running, and if not, stop the service
         stopServiceIfDone()
+        } finally {
+            downloadJobs.remove(item.id)
+        }
     }
 
     private suspend fun progressDownload(
@@ -379,13 +404,13 @@ class DownloadService : LifecycleService() {
         url: URL,
         totalReadBefore: Long,
         notificationBuilder: Builder
-    ): Long {
+    ): Pair<Long, Boolean> {
         Log.i(TAG(), "progressDownload() id=${item.id}, totalReadBefore=$totalReadBefore, downloadSize=${item.downloadSize}")
         val source =
             startConnection(item, url, totalReadBefore, item.downloadSize)
         if (source == null) {
             Log.i(TAG(), "progressDownload() — startConnection returned null, no progress")
-            return totalReadBefore
+            return Pair(totalReadBefore, false)
         }
 
         var totalRead = totalReadBefore
@@ -398,47 +423,79 @@ class DownloadService : LifecycleService() {
         var bytesSinceLastFlush = 0L
         var lastEmittedTotal = totalReadBefore
         val FLUSH_THRESHOLD = 1024L * 1024 // flush every 1MB
+        var reachedEOF = false
+        var paused = false
 
-        // Check if downloading is still active and read next bytes.
-        while (downloadQueue[item.id] && totalRead < item.downloadSize && sourceByte
-                .read(sink.buffer, DownloadHelper.DOWNLOAD_CHUNK_SIZE)
-                .also { lastRead = it } != -1L
-        ) {
-            totalRead += lastRead
-            bytesSinceLastFlush += lastRead
-
-            // Only flush to disk every 1MB to reduce I/O overhead
-            if (bytesSinceLastFlush >= FLUSH_THRESHOLD) {
-                sink.emit()
-                bytesSinceLastFlush = 0L
-            }
-
-            // Only emit progress and update notification once per second
-            if (item.downloadSize != -1L &&
-                System.currentTimeMillis() / 1000 > lastTime
+        try {
+            // Check if downloading is still active and read next bytes.
+            while (downloadQueue[item.id] && totalRead < item.downloadSize && sourceByte
+                    .read(sink.buffer, DownloadHelper.DOWNLOAD_CHUNK_SIZE)
+                    .also { lastRead = it } != -1L
             ) {
-                sink.emit()
-                _downloadFlow.emit(
-                    item.id to DownloadStatus.Progress(
-                        totalRead - lastEmittedTotal,
-                        totalRead,
-                        item.downloadSize
+                totalRead += lastRead
+                bytesSinceLastFlush += lastRead
+
+                // If we've downloaded everything we need, flush and break immediately
+                if (totalRead >= item.downloadSize) {
+                    sink.emit()
+                    _downloadFlow.emit(
+                        item.id to DownloadStatus.Progress(
+                            totalRead - lastEmittedTotal,
+                            totalRead,
+                            item.downloadSize
+                        )
                     )
-                )
-                lastEmittedTotal = totalRead
-                updateNotification(notificationBuilder, item, totalRead.toInt())
-                lastTime = System.currentTimeMillis() / 1000
+                    updateNotification(notificationBuilder, item, totalRead.toInt())
+                    break
+                }
+
+                // Only flush to disk every 1MB to reduce I/O overhead
+                if (bytesSinceLastFlush >= FLUSH_THRESHOLD) {
+                    sink.emit()
+                    bytesSinceLastFlush = 0L
+                }
+
+                // Only emit progress and update notification once per second
+                if (item.downloadSize != -1L &&
+                    System.currentTimeMillis() / 1000 > lastTime
+                ) {
+                    sink.emit()
+                    _downloadFlow.emit(
+                        item.id to DownloadStatus.Progress(
+                            totalRead - lastEmittedTotal,
+                            totalRead,
+                            item.downloadSize
+                        )
+                    )
+                    lastEmittedTotal = totalRead
+                    updateNotification(notificationBuilder, item, totalRead.toInt())
+                    lastTime = System.currentTimeMillis() / 1000
+                }
+            }
+        } catch (e: IOException) {
+            // This happens when pause()/stop() closes the response to interrupt
+            // a blocking read(). Treat as paused, not as an error.
+            Log.i(TAG(), "progressDownload() — IOException (likely from pause/stop): ${e.message}")
+            paused = true
+        }
+
+        // If read() returned -1, the server closed the stream — EOF reached
+        if (lastRead == -1L) {
+            reachedEOF = true
+        }
+
+        // Use NonCancellable so file handles are always properly closed,
+        // even when the coroutine is cancelled by pause() or stop()
+        withContext(kotlinx.coroutines.NonCancellable) {
+            withContext(Dispatchers.IO) {
+                sink.flush()
+                sink.close()
+                sourceByte.close()
+                source.close()
             }
         }
 
-        withContext(Dispatchers.IO) {
-            sink.flush()
-            sink.close()
-            sourceByte.close()
-            source.close()
-        }
-
-        return totalRead
+        return Pair(totalRead, reachedEOF)
     }
 
     private fun updateNotification(
@@ -477,6 +534,8 @@ class DownloadService : LifecycleService() {
             if (endByte >= readLimit) "" else (endByte - 1).toString()
         }.orEmpty()
 
+        Log.i(TAG(), "startConnection() — id=${item.id}, alreadyRead=$alreadyRead, limit='$limit', downloadSize=${item.downloadSize}")
+
         // Append ratebypass=yes to googlevideo.com URLs to avoid YouTube throttling
         val downloadUrl = if (url.host.contains("googlevideo.com") && url.query?.contains("ratebypass") != true) {
             val separator = if (url.query.isNullOrEmpty()) "?" else "&"
@@ -500,9 +559,12 @@ class DownloadService : LifecycleService() {
             for (attempt in 0 until maxRetries) {
                 try {
                     val call = httpClient.newCall(request)
+                    activeCalls[item.id] = call
                     val response = call.execute()
+                    activeCalls.remove(item.id)
                     return@withContext handleResponse(item, response, downloadUrl, alreadyRead, limit)
                 } catch (e: IOException) {
+                    activeCalls.remove(item.id)
                     lastError = e
                     Log.i(TAG(), "Download attempt ${attempt + 1}/$maxRetries failed: ${e.message}")
                     if (attempt < maxRetries - 1) {
@@ -524,9 +586,12 @@ class DownloadService : LifecycleService() {
                     .build()
                 try {
                     val call = httpClient.newCall(regeneratedRequest)
+                    activeCalls[item.id] = call
                     val response = call.execute()
+                    activeCalls.remove(item.id)
                     return@withContext handleResponse(item, response, URL(ProxyHelper.rewriteUrlUsingProxyPreference(newUrl)), alreadyRead, limit)
                 } catch (e: IOException) {
+                    activeCalls.remove(item.id)
                     Log.i(TAG(), "Regenerated link also failed: ${e.message}")
                 }
             }
@@ -541,16 +606,14 @@ class DownloadService : LifecycleService() {
 
     private val failedDownloads = java.util.concurrent.CopyOnWriteArraySet<Int>()
     private val pausedByUser = java.util.concurrent.CopyOnWriteArraySet<Int>()
-    private var regenerateCount = 0
 
-    private suspend fun handleResponse(item: DownloadItem, response: Response, url: URL, alreadyRead: Long, limit: String): ResponseBody? {
+    private suspend fun handleResponse(item: DownloadItem, response: Response, url: URL, alreadyRead: Long, limit: String, regenerateCount: Int = 0): ResponseBody? {
         Log.i(TAG(), "handleResponse() code=${response.code}, message=${response.message}, url=${response.request.url.toString().take(80)}")
         // If link is expired or unavailable, try to regenerate using available info.
         if (response.code == 403 || response.code == 503) {
-            regenerateCount++
-            if (regenerateCount > 3) {
-                Log.i(TAG(), "handleResponse() — already regenerated $regenerateCount times, giving up")
-                regenerateCount = 0
+            val newCount = regenerateCount + 1
+            if (newCount > 3) {
+                Log.i(TAG(), "handleResponse() — already regenerated $newCount times, giving up")
                 val message = getString(R.string.downloadfailed) + ": 503 Service Unavailable"
                 _downloadFlow.emit(item.id to DownloadStatus.Error(message))
                 toastFromMainThread(message)
@@ -579,9 +642,13 @@ class DownloadService : LifecycleService() {
                     .header("Range", "bytes=$alreadyRead-$limit")
                     .build()
                 try {
-                    val retryResponse = httpClient.newCall(retryRequest).execute()
-                    return handleResponse(item, retryResponse, finalUrl, alreadyRead, limit)
+                    val retryCall = httpClient.newCall(retryRequest)
+                    activeCalls[item.id] = retryCall
+                    val retryResponse = retryCall.execute()
+                    activeCalls.remove(item.id)
+                    return handleResponse(item, retryResponse, finalUrl, alreadyRead, limit, newCount)
                 } catch (e: IOException) {
+                    activeCalls.remove(item.id)
                     Log.i(TAG(), "handleResponse() — regenerated link also failed: ${e.message}")
                     return null
                 }
@@ -596,7 +663,6 @@ class DownloadService : LifecycleService() {
             return null
         }
 
-        regenerateCount = 0
         return response.body
     }
 
@@ -623,7 +689,9 @@ class DownloadService : LifecycleService() {
         }.apply { deleteIfExists() }.createFile()
 
         lifecycleScope.launch(coroutineContext) {
+            val job = this.coroutineContext[Job]!!
             item.id = Database.downloadDao().insertDownloadItem(item).toInt()
+            downloadJobs[item.id] = job
 
             if (mayStartNewDownload()) {
                 // Reserve slot immediately to prevent race condition with other start() coroutines
@@ -664,10 +732,12 @@ class DownloadService : LifecycleService() {
         downloadQueue[id] = true
 
         lifecycleScope.launch(coroutineContext) {
+            downloadJobs[id] = this.coroutineContext[Job]!!
             val file = Database.downloadDao().findDownloadItemById(id)
             if (file == null) {
                 Log.i(TAG(), "resume() — no DownloadItem found in DB for id=$id, releasing slot")
                 downloadQueue[id] = false
+                downloadJobs.remove(id)
                 return@launch
             }
             Log.i(TAG(), "resume() starting downloadFile for id=$id, videoId=${file.videoId}, fileSize=${if (file.path.exists()) file.path.fileSize() else 0}, downloadSize=${file.downloadSize}")
@@ -687,7 +757,23 @@ class DownloadService : LifecycleService() {
             pausedByUser.add(id)
         }
 
+        // Cancel the OkHttp Call — this is thread-safe and immediately interrupts
+        // any blocking read() on the download thread, causing it to throw IOException.
+        // The NonCancellable cleanup block in progressDownload will close file handles.
+        activeCalls.remove(id)?.cancel()
+
+        // Cancel the download coroutine as a fallback
+        downloadJobs.remove(id)?.cancel()
+
+        // Update the notification immediately to show paused state.
+        // We can't rely on downloadFile's NonCancellable block because job.cancel()
+        // may prevent it from running.
         lifecycleScope.launch(coroutineContext) {
+            val item = Database.downloadDao().findDownloadItemById(id)
+            if (item != null) {
+                val notificationBuilder = getNotificationBuilder(item)
+                setPauseNotification(notificationBuilder, item, false)
+            }
             _downloadFlow.emit(id to DownloadStatus.Paused)
         }
 
@@ -706,7 +792,7 @@ class DownloadService : LifecycleService() {
                 // Skip stale placeholder items (e.g. subtitles with null URL and no size)
                 if (item.url == null && item.downloadSize <= 0L) return@filter false
                 val fileSize = if (item.path.exists()) item.path.fileSize() else 0
-                item.downloadSize <= 0L || fileSize < item.downloadSize
+                item.downloadSize <= 0L || fileSize < item.downloadSize || fileSize > item.downloadSize
             }
             Log.i(TAG(), "resumeAllIncomplete() — found ${incomplete.size} incomplete downloads")
 
@@ -716,6 +802,7 @@ class DownloadService : LifecycleService() {
                 if (!downloadQueue[item.id] && mayStartNewDownload()) {
                     downloadQueue[item.id] = true
                     launch(coroutineContext) {
+                        downloadJobs[item.id] = this.coroutineContext[Job]!!
                         downloadFile(item)
                     }
                 } else if (!downloadQueue[item.id]) {
@@ -735,6 +822,10 @@ class DownloadService : LifecycleService() {
         for (id in downloadQueue.keyIterator()) {
             if (downloadQueue[id]) {
                 pause(id, byUser = true)
+            } else {
+                // Also mark queue-waiting downloads as paused by user
+                // so they don't auto-resume when a slot frees up
+                pausedByUser.add(id)
             }
         }
     }
@@ -743,14 +834,18 @@ class DownloadService : LifecycleService() {
      * Stop downloading job for given [id]. If no downloads are active, stop the service.
      */
     private fun stop(id: Int) = lifecycleScope.launch(coroutineContext) {
+        Log.i(TAG(), "stop() id=$id")
         downloadQueue[id] = false
         pausedByUser.remove(id)
         failedDownloads.remove(id)
+        activeCalls.remove(id)?.cancel()
+        downloadJobs.remove(id)?.cancel()
         _downloadFlow.emit(id to DownloadStatus.Stopped)
 
         val item = Database.downloadDao().findDownloadItemById(id) ?: return@launch
         notificationManager.cancel(item.getNotificationId())
         Database.downloadDao().deleteDownloadItemById(id)
+        Log.i(TAG(), "stop() — deleted DownloadItem id=$id, videoId=${item.videoId}")
 
         // If no more DownloadItems exist for this videoId, delete the parent Download
         // to avoid an orphaned Download entry that can't be resumed or interacted with
@@ -758,6 +853,7 @@ class DownloadService : LifecycleService() {
             val downloadWithItems = Database.downloadDao().getDownloadById(item.videoId)
             if (downloadWithItems != null) {
                 Database.downloadDao().deleteDownload(downloadWithItems.download)
+                Log.i(TAG(), "stop() — deleted orphaned parent Download for videoId=${item.videoId}")
             }
         }
 
@@ -768,7 +864,10 @@ class DownloadService : LifecycleService() {
      * Stop service if no downloads are active
      */
     private fun stopServiceIfDone() {
-        if (downloadQueue.valueIterator().asSequence().none { it }) {
+        val anyActive = downloadQueue.valueIterator().asSequence().any { it }
+        Log.i(TAG(), "stopServiceIfDone() — anyActive=$anyActive, queueSize=${downloadQueue.size()}")
+        if (!anyActive) {
+            Log.i(TAG(), "stopServiceIfDone() — stopping service, no active downloads")
             ServiceCompat.stopForeground(this@DownloadService, ServiceCompat.STOP_FOREGROUND_DETACH)
             sendBroadcast(Intent(ACTION_SERVICE_STOPPED))
             stopSelf()
@@ -779,18 +878,26 @@ class DownloadService : LifecycleService() {
      * Regenerate stream url using available info format and quality.
      */
     private suspend fun regenerateLink(item: DownloadItem) {
+        Log.i(TAG(), "regenerateLink() — videoId=${item.videoId}, type=${item.type}, format=${item.format}, quality=${item.quality}")
         val streams = runCatching {
             MediaServiceRepository.instance.getStreams(item.videoId)
-        }.getOrNull() ?: return
+        }.getOrNull() ?: run {
+            Log.i(TAG(), "regenerateLink() — failed to fetch streams for videoId=${item.videoId}")
+            return
+        }
         val stream = when (item.type) {
             FileType.AUDIO -> streams.audioStreams
             FileType.VIDEO -> streams.videoStreams
             else -> null
         }
-        stream?.find {
+        val matched = stream?.find {
             it.format == item.format && it.quality == item.quality && it.audioTrackLocale == item.language
-        }?.let {
-            item.url = it.url
+        }
+        if (matched != null) {
+            item.url = matched.url
+            Log.i(TAG(), "regenerateLink() — found matching stream, new url set")
+        } else {
+            Log.i(TAG(), "regenerateLink() — no matching stream found for format=${item.format}, quality=${item.quality}")
         }
         Database.downloadDao().updateDownloadItem(item)
     }
@@ -926,10 +1033,15 @@ class DownloadService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        Log.i(TAG(), "onDestroy() — cleaning up service")
         networkCallback?.let { cb ->
             getSystemService<ConnectivityManager>()?.unregisterNetworkCallback(cb)
         }
         networkCallback = null
+        activeCalls.values.forEach { runCatching { it.cancel() } }
+        activeCalls.clear()
+        downloadJobs.values.forEach { it.cancel() }
+        downloadJobs.clear()
         downloadQueue.clear()
         pausedByUser.clear()
         failedDownloads.clear()

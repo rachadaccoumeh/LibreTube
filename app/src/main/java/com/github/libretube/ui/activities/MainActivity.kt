@@ -488,6 +488,16 @@ class MainActivity : AbstractPlayerHostActivity() {
             }
 
             override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                // For downloads/playlist search, just clear the query — don't navigate back
+                if (currentSearchType == SearchType.DOWNLOADS) {
+                    downloadViewModel.setQuery(null)
+                    return true
+                }
+                if (currentSearchType == SearchType.PLAYLIST) {
+                    playlistViewModel.setQuery(null)
+                    return true
+                }
+
                 // Handover back press to `BackPressedDispatcher` if not on a root destination
                 if (navController.previousBackStackEntry != null) {
                     this@MainActivity.onBackPressedDispatcher.onBackPressed()
