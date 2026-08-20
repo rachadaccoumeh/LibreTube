@@ -50,9 +50,6 @@ class DownloadPlaylistAdapter(
             playlistTitle.text = item.downloadPlaylist.title
             playlistDescription.text = item.downloadPlaylist.description
 
-            val firstVideo = item.downloadVideos.firstOrNull()
-            android.util.Log.e("DownloadPlaylistsAdapter", "playlist=${item.downloadPlaylist.title}, videos=${item.downloadVideos.size}, firstVideo=${firstVideo?.videoId}, firstThumb=${firstVideo?.thumbnailPath}, exists=${firstVideo?.thumbnailPath?.exists()}, playlistThumb=${item.downloadPlaylist.thumbnailPath}, exists=${item.downloadPlaylist.thumbnailPath?.exists()}")
-
             val playlistThumbPath = item.downloadPlaylist.thumbnailPath
             if (playlistThumbPath != null && playlistThumbPath.exists()) {
                 ImageHelper.loadImage(
@@ -61,12 +58,12 @@ class DownloadPlaylistAdapter(
                 )
             } else {
                 // Fallback: use first video's thumbnail, or load from YouTube CDN
+                val firstVideo = item.downloadVideos.firstOrNull()
                 val firstVideoThumb = firstVideo?.thumbnailPath
                 if (firstVideoThumb != null && firstVideoThumb.exists()) {
                     ImageHelper.loadImage(firstVideoThumb.toString(), playlistThumbnail)
                 } else if (firstVideo != null) {
                     val ytThumbUrl = "https://img.youtube.com/vi/${firstVideo.videoId}/mqdefault.jpg"
-                    android.util.Log.e("DownloadPlaylistsAdapter", "loading from CDN: $ytThumbUrl")
                     playlistThumbnail.load(ytThumbUrl)
                 }
             }

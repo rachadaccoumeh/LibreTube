@@ -109,15 +109,8 @@ class DownloadsAdapter(
 
             val thumbPath = download.thumbnailPath
             if (thumbPath != null && thumbPath.exists()) {
-                thumbnail.load(thumbPath.toString()) {
-                    listener(
-                        onError = { _, result ->
-                            android.util.Log.e("DownloadsAdapter", "thumbnail Coil error: videoId=${download.videoId}, error=${result.throwable.message}")
-                        }
-                    )
-                }
+                thumbnail.load(thumbPath.toString())
             } else {
-                android.util.Log.e("DownloadsAdapter", "thumbnail: videoId=${download.videoId}, file missing, loading from YouTube CDN")
                 val ytThumbUrl = "https://img.youtube.com/vi/${download.videoId}/mqdefault.jpg"
                 thumbnail.load(ytThumbUrl) {
                     listener(
@@ -132,9 +125,6 @@ class DownloadsAdapter(
                                     }
                                 }
                             }
-                        },
-                        onError = { _, result ->
-                            android.util.Log.e("DownloadsAdapter", "thumbnail YouTube CDN error: videoId=${download.videoId}, error=${result.throwable.message}")
                         }
                     )
                 }
