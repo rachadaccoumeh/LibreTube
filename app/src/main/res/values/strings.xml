@@ -446,6 +446,12 @@
     <string name="visibility_public">Public</string>
     <string name="visibility_unlisted">Unlisted</string>
     <string name="sort_by">Sort by</string>
+    <string name="filter">Filter</string>
+    <string name="filter_all">All</string>
+    <string name="filter_corrupted">Corrupted</string>
+    <string name="filter_downloading">Downloading / Queued</string>
+    <string name="filter_incomplete">Incomplete</string>
+    <string name="clear">Clear</string>
     <string name="uploader_name">Uploader name</string>
     <string name="duration_span">Duration: %1$s</string>
     <string name="remove_watched_videos">Remove watched videos</string>

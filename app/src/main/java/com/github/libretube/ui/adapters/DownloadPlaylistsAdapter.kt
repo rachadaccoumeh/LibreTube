@@ -13,10 +13,12 @@ import com.github.libretube.helpers.DownloadHelper
 import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.ui.adapters.callbacks.DiffUtilItemCallback
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import coil3.load
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.io.path.exists
 
 class DownloadPlaylistViewHolder(val binding: PlaylistsRowBinding) :
     RecyclerView.ViewHolder(binding.root)
@@ -47,10 +49,28 @@ class DownloadPlaylistAdapter(
         with(holder.binding) {
             playlistTitle.text = item.downloadPlaylist.title
             playlistDescription.text = item.downloadPlaylist.description
-            ImageHelper.loadImage(
-                item.downloadPlaylist.thumbnailPath?.toUri()?.toString(),
-                playlistThumbnail
-            )
+
+            val firstVideo = item.downloadVideos.firstOrNull()
+            android.util.Log.e("DownloadPlaylistsAdapter", "playlist=${item.downloadPlaylist.title}, videos=${item.downloadVideos.size}, firstVideo=${firstVideo?.videoId}, firstThumb=${firstVideo?.thumbnailPath}, exists=${firstVideo?.thumbnailPath?.exists()}, playlistThumb=${item.downloadPlaylist.thumbnailPath}, exists=${item.downloadPlaylist.thumbnailPath?.exists()}")
+
+            val playlistThumbPath = item.downloadPlaylist.thumbnailPath
+            if (playlistThumbPath != null && playlistThumbPath.exists()) {
+                ImageHelper.loadImage(
+                    playlistThumbPath.toUri().toString(),
+                    playlistThumbnail
+                )
+            } else {
+                // Fallback: use first video's thumbnail, or load from YouTube CDN
+                val firstVideoThumb = firstVideo?.thumbnailPath
+                if (firstVideoThumb != null && firstVideoThumb.exists()) {
+                    ImageHelper.loadImage(firstVideoThumb.toString(), playlistThumbnail)
+                } else if (firstVideo != null) {
+                    val ytThumbUrl = "https://img.youtube.com/vi/${firstVideo.videoId}/mqdefault.jpg"
+                    android.util.Log.e("DownloadPlaylistsAdapter", "loading from CDN: $ytThumbUrl")
+                    playlistThumbnail.load(ytThumbUrl)
+                }
+            }
+
             videoCount.text = item.downloadVideos.size.toString()
 
             root.setOnClickListener {

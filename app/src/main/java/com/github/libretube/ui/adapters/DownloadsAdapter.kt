@@ -29,6 +29,7 @@ import com.github.libretube.ui.sheets.DownloadOptionsBottomSheet.Companion.DELET
 import com.github.libretube.ui.viewholders.DownloadsViewHolder
 import com.github.libretube.util.TextUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import coil3.load
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -106,8 +107,37 @@ class DownloadsAdapter(
                 }
             }
 
-            download.thumbnailPath?.let { path ->
-                ImageHelper.loadImage(path.toString(), thumbnail)
+            val thumbPath = download.thumbnailPath
+            if (thumbPath != null && thumbPath.exists()) {
+                thumbnail.load(thumbPath.toString()) {
+                    listener(
+                        onError = { _, result ->
+                            android.util.Log.e("DownloadsAdapter", "thumbnail Coil error: videoId=${download.videoId}, error=${result.throwable.message}")
+                        }
+                    )
+                }
+            } else {
+                android.util.Log.e("DownloadsAdapter", "thumbnail: videoId=${download.videoId}, file missing, loading from YouTube CDN")
+                val ytThumbUrl = "https://img.youtube.com/vi/${download.videoId}/mqdefault.jpg"
+                thumbnail.load(ytThumbUrl) {
+                    listener(
+                        onSuccess = { _, _ ->
+                            // Download thumbnail locally for next time
+                            if (thumbPath != null) {
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    try {
+                                        ImageHelper.downloadImage(context, ytThumbUrl, thumbPath)
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("DownloadsAdapter", "thumbnail: failed to save locally: ${e.message}")
+                                    }
+                                }
+                            }
+                        },
+                        onError = { _, result ->
+                            android.util.Log.e("DownloadsAdapter", "thumbnail YouTube CDN error: videoId=${download.videoId}, error=${result.throwable.message}")
+                        }
+                    )
+                }
             }
 
             progressBar.setOnClickListener {

@@ -62,7 +62,30 @@ class PlaylistAdapter(
             channelImageContainer.isGone = true
             channelName.text = streamItem.uploaderName
 
-            ImageHelper.loadImage(streamItem.thumbnail, thumbnail)
+            // If thumbnail is a local file path that doesn't exist, fallback to YouTube CDN
+            val thumbUrl = streamItem.thumbnail
+            if (thumbUrl != null && thumbUrl.startsWith("file://")) {
+                val localFile = java.io.File(android.net.Uri.parse(thumbUrl).path ?: "")
+                if (localFile.exists()) {
+                    ImageHelper.loadImage(thumbUrl, thumbnail)
+                } else {
+                    android.util.Log.e("PlaylistAdapter", "thumbnail: local file missing, falling back to CDN: videoId=$videoId")
+                    val ytThumbUrl = "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
+                    ImageHelper.loadImage(ytThumbUrl, thumbnail)
+                    // Save locally for next time
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val thumbPath = localFile.toPath()
+                            thumbPath.parent?.let { java.io.File(it.toString()).mkdirs() }
+                            ImageHelper.downloadImage(root.context, ytThumbUrl, thumbPath)
+                        } catch (e: Exception) {
+                            android.util.Log.e("PlaylistAdapter", "thumbnail: failed to save locally: ${e.message}")
+                        }
+                    }
+                }
+            } else {
+                ImageHelper.loadImage(thumbUrl, thumbnail)
+            }
             thumbnailDuration.setFormattedDuration(streamItem.duration ?: -1, streamItem.isShort, streamItem.uploaded)
 
             root.setOnClickListener {
