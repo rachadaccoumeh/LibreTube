@@ -426,6 +426,10 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
             binding.timeBar.valueTo
         )
 
+        // update the mini player progress bar
+        val progressPercent = ((currentPosition / duration) * 100).toInt().coerceIn(0, 100)
+        binding.miniPlayerProgress.progress = progressPercent
+
         handler.postDelayed(this::updateSeekBar, 200)
     }
 

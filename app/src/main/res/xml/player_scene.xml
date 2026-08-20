@@ -90,5 +90,14 @@
             motion:layout_constraintEnd_toStartOf="@+id/play_imageView"
             motion:layout_constraintStart_toEndOf="@+id/player"
             motion:layout_constraintTop_toTopOf="@+id/play_imageView" />
+        <Constraint
+            android:id="@+id/miniPlayerProgress"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:alpha="1"
+            android:visibility="visible"
+            motion:layout_constraintBottom_toBottomOf="@+id/main_container"
+            motion:layout_constraintEnd_toEndOf="@+id/main_container"
+            motion:layout_constraintStart_toStartOf="@+id/main_container" />
     </ConstraintSet>
 </MotionScene>

@@ -226,4 +226,19 @@
         app:layout_constraintStart_toEndOf="@+id/player"
         app:layout_constraintTop_toTopOf="@+id/play_imageView" />
 
+    <ProgressBar
+        android:id="@+id/miniPlayerProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="0dp"
+        android:layout_height="2dp"
+        android:alpha="0"
+        android:max="100"
+        android:progress="0"
+        android:progressBackgroundTint="@android:color/transparent"
+        android:progressTint="?attr/colorPrimary"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/main_container"
+        app:layout_constraintEnd_toEndOf="@+id/main_container"
+        app:layout_constraintStart_toStartOf="@+id/main_container" />
+
 </com.github.libretube.ui.views.SingleViewTouchableMotionLayout>

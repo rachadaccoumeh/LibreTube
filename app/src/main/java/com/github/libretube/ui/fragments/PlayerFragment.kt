@@ -145,6 +145,17 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
     private var seekBarPreviewListener: SeekbarPreviewListener? = null
 
+    private val miniPlayerProgressRunnable = object : Runnable {
+        override fun run() {
+            val binding = _binding ?: return
+            val duration = playerController?.duration?.takeIf { it > 0 } ?: return
+            val position = playerController?.currentPosition ?: return
+            val progressPercent = ((position.toFloat() / duration) * 100).toInt().coerceIn(0, 100)
+            binding.miniPlayerProgress?.progress = progressPercent
+            handler.postDelayed(this, 200)
+        }
+    }
+
     // True when the video was closed through the close button on PiP mode
     private var closedVideo = false
 
@@ -228,6 +239,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                     this@PlayerFragment::checkForSegments,
                     100
                 )
+            }
+
+            if (isPlaying) {
+                handler.post(miniPlayerProgressRunnable)
+            } else {
+                handler.removeCallbacks(miniPlayerProgressRunnable)
             }
         }
 

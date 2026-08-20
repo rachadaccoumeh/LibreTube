@@ -351,4 +351,19 @@
 
     </LinearLayout>
 
+    <ProgressBar
+        android:id="@+id/miniPlayerProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="0dp"
+        android:layout_height="2dp"
+        android:alpha="0"
+        android:max="100"
+        android:progress="0"
+        android:progressBackgroundTint="@android:color/transparent"
+        android:progressTint="?attr/colorPrimary"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/audio_player_container"
+        app:layout_constraintEnd_toEndOf="@id/audio_player_container"
+        app:layout_constraintStart_toStartOf="@id/audio_player_container" />
+
 </com.github.libretube.ui.views.SingleViewTouchableMotionLayout>
