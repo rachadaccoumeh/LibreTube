@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 import com.github.libretube.db.obj.Download
 import com.github.libretube.db.obj.DownloadChapter
 import com.github.libretube.db.obj.DownloadItem
@@ -24,6 +25,10 @@ interface DownloadDao {
     suspend fun getAll(): List<DownloadWithItems>
 
     @Transaction
+    @Query("SELECT * FROM download")
+    fun getAllDownloadsFlow(): Flow<List<DownloadWithItems>>
+
+    @Transaction
     @Query("SELECT * FROM download WHERE videoId = :videoId")
     suspend fun getDownloadById(videoId: String): DownloadWithItems?
 
@@ -36,6 +41,9 @@ interface DownloadDao {
 
     @Query("SELECT * FROM downloaditem WHERE id = :id")
     suspend fun findDownloadItemById(id: Int): DownloadItem?
+
+    @Query("SELECT * FROM downloaditem")
+    suspend fun getAllDownloadItems(): List<DownloadItem>
 
     @Query("DELETE FROM downloaditem WHERE id = :id")
     suspend fun deleteDownloadItemById(id: Int)

@@ -3,6 +3,7 @@ package com.github.libretube.ui.preferences
 import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.WindowManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.annotation.StringRes
@@ -36,11 +37,31 @@ class BackupRestoreSettings : BasePreferenceFragment() {
     private var importFormat: ImportFormat = ImportFormat.NEWPIPE
     private var isFullBackup = false
 
+    private var loadingDialog: android.app.Dialog? = null
+
+    private fun showLoadingDialog(@StringRes messageRes: Int) {
+        val context = context ?: return
+        loadingDialog = MaterialAlertDialogBuilder(context)
+            .setMessage(messageRes)
+            .setCancelable(false)
+            .create()
+            .apply {
+                show()
+                window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+    }
+
+    private fun dismissLoadingDialog() {
+        loadingDialog?.dismiss()
+        loadingDialog = null
+    }
+
     // backup and restore database
     private val getBackupFile =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri == null) return@registerForActivityResult
-            CoroutineScope(Dispatchers.IO).launch {
+            showLoadingDialog(R.string.restore_in_progress)
+            lifecycleScope.launch(Dispatchers.IO) {
                 // Auto-detect: ZIP = full backup, JSON = legacy backup
                 val isZip = context?.contentResolver?.getType(uri)?.contains("zip") == true
                     || uri.toString().endsWith(".zip")
@@ -50,6 +71,7 @@ class BackupRestoreSettings : BasePreferenceFragment() {
                     BackupHelper.restoreAdvancedBackup(requireContext().applicationContext, uri)
                 }
                 withContext(Dispatchers.Main) {
+                    dismissLoadingDialog()
                     // could fail if fragment is already closed
                     runCatching {
                         RequireRestartDialog().show(childFragmentManager, this::class.java.name)
@@ -59,11 +81,15 @@ class BackupRestoreSettings : BasePreferenceFragment() {
         }
     private val createBackupFile = registerForActivityResult(CreateDocument(FILETYPE_ANY)) { uri ->
         if (uri == null) return@registerForActivityResult
+        showLoadingDialog(R.string.backup_in_progress)
         lifecycleScope.launch(Dispatchers.IO) {
             if (isFullBackup) {
                 FullBackupHelper.createFullBackup(requireContext().applicationContext, uri, backupFile)
             } else {
                 BackupHelper.createAdvancedBackup(requireContext().applicationContext, uri, backupFile)
+            }
+            withContext(Dispatchers.Main) {
+                dismissLoadingDialog()
             }
         }
     }

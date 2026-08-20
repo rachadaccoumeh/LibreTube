@@ -173,12 +173,20 @@ class DownloadsAdapter(
                     val realPosition = currentList.indexOf(downloadWithItems)
                     showDeleteDialog(root.context, realPosition)
                 }
+
+                // Collect incomplete item IDs for enqueue/dequeue options
+                val incompleteIds = items
+                    .filter { item -> item.downloadSize <= 0 || (if (item.path.exists()) item.path.fileSize() else 0) < item.downloadSize }
+                    .map { it.id }
+                    .toIntArray()
+
                 DownloadOptionsBottomSheet()
                     .apply {
                         arguments = bundleOf(
                             IntentData.streamItem to download.toStreamItem(),
                             IntentData.playlistId to playlistId,
-                            IntentData.downloadTab to downloadTab
+                            IntentData.downloadTab to downloadTab,
+                            "incompleteIds" to incompleteIds
                         )
                     }
                     .show(fragmentManager)
