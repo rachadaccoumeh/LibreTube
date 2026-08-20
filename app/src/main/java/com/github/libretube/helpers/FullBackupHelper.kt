@@ -98,7 +98,7 @@ object FullBackupHelper {
                                     uploader = dwi.download.uploader,
                                     duration = dwi.download.duration,
                                     uploadDate = dwi.download.uploadDate?.toString(),
-                                    thumbnailPath = dwi.download.thumbnailPath?.toString(),
+                                    thumbnailPath = dwi.download.thumbnailPath?.let { java.io.File(it.toString()).name },
                                     uploaderUrl = dwi.download.uploaderUrl,
                                     views = dwi.download.views,
                                     likes = dwi.download.likes,
@@ -265,7 +265,10 @@ object FullBackupHelper {
                 uploader = dl.uploader,
                 duration = dl.duration,
                 uploadDate = dl.uploadDate?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) },
-                thumbnailPath = dl.thumbnailPath?.let { filesDir.toPath().resolve(it) },
+                thumbnailPath = dl.thumbnailPath?.let { thumbPath ->
+                    val fileName = java.io.File(thumbPath).name
+                    filesDir.toPath().resolve("thumbnail").resolve(fileName)
+                },
                 uploaderUrl = dl.uploaderUrl,
                 views = dl.views,
                 likes = dl.likes,

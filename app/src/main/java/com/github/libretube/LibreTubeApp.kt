@@ -1,6 +1,7 @@
 package com.github.libretube
 
 import android.app.Application
+import android.util.Log
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -16,6 +17,8 @@ class LibreTubeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        Log.i("LibreTubeApp", "=== BUILD STAMP: v31.4-fix14 ===")
 
         /**
          * Initialize the needed notification channels for DownloadService and BackgroundMode

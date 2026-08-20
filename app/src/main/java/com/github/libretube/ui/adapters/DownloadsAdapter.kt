@@ -70,6 +70,11 @@ class DownloadsAdapter(
             val downloadSize = items.sumOf { it.downloadSize }
             val currentSize = items.filter { it.path.exists() }.sumOf { it.path.fileSize() }
 
+            android.util.Log.e("DownloadsAdapter", "Row: videoId=${download.videoId}, title=${download.title?.take(40)}, items=${items.size}, downloadSize=$downloadSize, currentSize=$currentSize")
+            items.forEach { item ->
+                android.util.Log.e("DownloadsAdapter", "  item id=${item.id}, type=${item.type}, downloadSize=${item.downloadSize}, fileSize=${if (item.path.exists()) item.path.fileSize() else 0}, exists=${item.path.exists()}, url=${item.url?.take(50)}")
+            }
+
             if (downloadSize == -1L) {
                 progressBar.isIndeterminate = true
             } else {
@@ -82,7 +87,13 @@ class DownloadsAdapter(
             } else {
                 context.getString(R.string.unknown)
             }
-            if (downloadSize > currentSize) {
+            if (downloadSize <= 0 || downloadSize > currentSize) {
+                downloadOverlay.isVisible = true
+                resumePauseBtn.setImageResource(R.drawable.ic_download)
+                fileSize.text = "${currentSize.formatAsFileSize()} / $totalSizeInfo"
+            } else if (currentSize > downloadSize) {
+                // File is larger than DB downloadSize — DB metadata is stale/wrong.
+                // Show overlay so user can re-download.
                 downloadOverlay.isVisible = true
                 resumePauseBtn.setImageResource(R.drawable.ic_download)
                 fileSize.text = "${currentSize.formatAsFileSize()} / $totalSizeInfo"
