@@ -11,6 +11,8 @@
     <string name="unsubscribe">Unsubscribe</string>
     <string name="share">Share</string>
     <string name="download">Download</string>
+    <string name="downloaded">Downloaded</string>
+    <string name="deleted">Download deleted.</string>
     <string name="save">Save</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
