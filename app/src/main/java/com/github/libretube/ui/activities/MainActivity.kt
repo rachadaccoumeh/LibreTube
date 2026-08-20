@@ -54,6 +54,7 @@ import com.github.libretube.ui.dialogs.ErrorDialog
 import com.github.libretube.ui.dialogs.ImportTempPlaylistDialog
 import com.github.libretube.ui.extensions.onSystemInsets
 import com.github.libretube.ui.fragments.AudioPlayerFragment
+import com.github.libretube.ui.fragments.DownloadTab
 import com.github.libretube.ui.fragments.DownloadsFragment
 import com.github.libretube.ui.fragments.PlayerFragment
 import com.github.libretube.ui.models.DownloadsViewModel
@@ -230,28 +231,38 @@ class MainActivity : AbstractPlayerHostActivity() {
             if (savedInstanceState == null &&
                 supportFragmentManager.fragments.none { it is PlayerFragment || it is AudioPlayerFragment }
             ) {
-                PlayerStateHelper.getSavedState(this)?.let { state ->
-                    val timestampSec = state.positionMs / 1000
-                    val playerData = PlayerData(
-                        videoId = state.videoId,
-                        timestamp = timestampSec,
-                        isOffline = state.isOffline,
-                        startPaused = true
-                    )
-                    if (state.isAudioOnly) {
-                        BackgroundHelper.playOnBackground(this, playerData)
-                        NavigationHelper.openAudioPlayerFragment(
-                            this,
-                            offlinePlayer = state.isOffline,
-                            minimizeByDefault = true
+                try {
+                    PlayerStateHelper.getSavedState(this)?.let { state ->
+                        if (state.videoId.isBlank()) {
+                            PlayerStateHelper.clearState(this)
+                            return@let
+                        }
+                        val timestampSec = state.positionMs / 1000
+                        val playerData = PlayerData(
+                            videoId = state.videoId,
+                            timestamp = timestampSec,
+                            isOffline = state.isOffline,
+                            startPaused = true,
+                            downloadTab = state.downloadTab ?: DownloadTab.VIDEO
                         )
-                    } else {
-                        NavigationHelper.openVideoPlayerFragment(
-                            context = this,
-                            playerData = playerData,
-                            minimizeByDefault = true
-                        )
+                        if (state.isAudioOnly) {
+                            BackgroundHelper.playOnBackground(this, playerData)
+                            NavigationHelper.openAudioPlayerFragment(
+                                this,
+                                offlinePlayer = state.isOffline,
+                                minimizeByDefault = true
+                            )
+                        } else {
+                            NavigationHelper.openVideoPlayerFragment(
+                                context = this,
+                                playerData = playerData,
+                                minimizeByDefault = true
+                            )
+                        }
                     }
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Failed to restore player state: ${e.message}", e)
+                    PlayerStateHelper.clearState(this)
                 }
             }
         }
