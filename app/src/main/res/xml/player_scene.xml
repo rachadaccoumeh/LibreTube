@@ -95,6 +95,7 @@
             android:layout_width="match_parent"
             android:layout_height="2dp"
             android:alpha="1"
+            android:elevation="8dp"
             android:visibility="visible"
             motion:layout_constraintBottom_toBottomOf="@+id/main_container"
             motion:layout_constraintEnd_toEndOf="@+id/main_container"
