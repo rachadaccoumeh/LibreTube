@@ -83,6 +83,11 @@ class DownloadDialog : DialogFragment() {
     private fun initDownloadOptions(binding: DialogDownloadBinding, streams: Streams, existingItems: List<DownloadItem>) {
         binding.videoTitle.text = streams.title
 
+        Log.i(TAG(), "initDownloadOptions() — videoId=$videoId, existingItems count=${existingItems.size}")
+        existingItems.forEach { item ->
+            Log.i(TAG(), "  existing item: id=${item.id}, type=${item.type}, format=${item.format}, quality=${item.quality}, language=${item.language}, downloadSize=${item.downloadSize}")
+        }
+
         val videoStreams = streams.videoStreams.filter {
             !it.url.isNullOrEmpty()
         }.filter { !it.format.orEmpty().contains("HLS") }.sortedByDescending {
@@ -111,6 +116,12 @@ class DownloadDialog : DialogFragment() {
             val downloaded = existingItems.any { item ->
                 item.type == FileType.VIDEO && item.format == it.format && item.quality == it.quality
             }
+            if (downloaded) {
+                val matchedItem = existingItems.first { item ->
+                    item.type == FileType.VIDEO && item.format == it.format && item.quality == it.quality
+                }
+                Log.i(TAG(), "VIDEO stream matched as downloaded: stream quality=${it.quality}, format=${it.format}, codec=${it.codec} -> DB item id=${matchedItem.id}, format=${matchedItem.format}, quality=${matchedItem.quality}")
+            }
             val suffix = if (downloaded) " — ✓ ${getString(R.string.already_downloaded)}" else ""
             "${it.quality} ${it.codec} ($fileSize)$suffix"
         }.toMutableList().also {
@@ -126,6 +137,12 @@ class DownloadDialog : DialogFragment() {
             val downloaded = existingItems.any { item ->
                 item.type == FileType.AUDIO && item.format == it.format && item.quality == it.quality
             }
+            if (downloaded) {
+                val matchedItem = existingItems.first { item ->
+                    item.type == FileType.AUDIO && item.format == it.format && item.quality == it.quality
+                }
+                Log.i(TAG(), "AUDIO stream matched as downloaded: stream quality=${it.quality}, format=${it.format}, locale=${it.audioTrackLocale} -> DB item id=${matchedItem.id}, format=${matchedItem.format}, quality=${matchedItem.quality}, language=${matchedItem.language}")
+            }
             val suffix = if (downloaded) " — ✓ ${getString(R.string.already_downloaded)}" else ""
             "${it.quality} ${it.format} ($infoStr)$suffix"
         }.toMutableList().also {
@@ -137,41 +154,6 @@ class DownloadDialog : DialogFragment() {
         }
 
         restorePreviousSelections(binding, videoStreams, audioStreams, subtitles)
-
-        // Show warning icon on spinners when selected item is already downloaded
-        fun updateVideoWarning() {
-            val pos = binding.videoSpinner.selectedItemPosition - 1
-            val stream = videoStreams.getOrNull(pos)
-            val downloaded = stream != null && existingItems.any { item ->
-                item.type == FileType.VIDEO && item.format == stream.format && item.quality == stream.quality
-            }
-            if (downloaded) {
-                binding.videoSpinner.setEndIconDrawable(android.R.drawable.stat_sys_warning)
-            } else {
-                binding.videoSpinner.clearEndIcon()
-            }
-        }
-
-        fun updateAudioWarning() {
-            val pos = binding.audioSpinner.selectedItemPosition - 1
-            val stream = audioStreams.getOrNull(pos)
-            val downloaded = stream != null && existingItems.any { item ->
-                item.type == FileType.AUDIO && item.format == stream.format && item.quality == stream.quality
-            }
-            if (downloaded) {
-                binding.audioSpinner.setEndIconDrawable(android.R.drawable.stat_sys_warning)
-            } else {
-                binding.audioSpinner.clearEndIcon()
-            }
-        }
-
-        // Initial state after restoring previous selections
-        updateVideoWarning()
-        updateAudioWarning()
-
-        // Update warning icon when user changes selection
-        binding.videoSpinner.setOnSelectionChangeListener { updateVideoWarning() }
-        binding.audioSpinner.setOnSelectionChangeListener { updateAudioWarning() }
 
         onDownloadConfirm = onDownloadConfirm@{
             val videoPosition = binding.videoSpinner.selectedItemPosition - 1

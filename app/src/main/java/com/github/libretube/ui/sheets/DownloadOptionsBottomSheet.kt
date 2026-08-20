@@ -23,6 +23,11 @@ import com.github.libretube.ui.dialogs.ShareDialog
 import com.github.libretube.ui.fragments.DownloadTab
 import com.github.libretube.util.PlayingQueue
 import com.github.libretube.util.PlayingQueueMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.widget.Toast
 
 class DownloadOptionsBottomSheet : BaseBottomSheet() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +41,7 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
             R.string.playOnBackground,
             R.string.addToPlaylist,
             R.string.share,
+            R.string.verify_download,
             R.string.delete
         )
 
@@ -96,6 +102,25 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
                     val newShareDialog = ShareDialog()
                     newShareDialog.arguments = bundle
                     newShareDialog.show(parentFragmentManager, null)
+                }
+
+                R.string.verify_download -> {
+                    val ctx = requireContext()
+                    val errStr = getString(R.string.verify_download_error)
+                    val okStr = getString(R.string.verify_download_success)
+                    val fixedPrefix = getString(R.string.verify_download_fixed).split("%")[0]
+                    dialog?.dismiss()
+                    CoroutineScope(Dispatchers.Main).launch {
+                        val result = withContext(Dispatchers.IO) {
+                            DownloadHelper.verifyDownload(ctx, videoId)
+                        }
+                        val msg = when (result) {
+                            -1 -> errStr
+                            0 -> okStr
+                            else -> "$fixedPrefix$result"
+                        }
+                        Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                    }
                 }
 
                 R.string.delete -> {

@@ -7,6 +7,7 @@ import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.fragment.app.FragmentManager
 import com.github.libretube.R
+import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.constants.IntentData
 import com.github.libretube.constants.PreferenceKeys
@@ -14,6 +15,7 @@ import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.DownloadItem
 import com.github.libretube.db.obj.DownloadWithItems
 import com.github.libretube.enums.FileType
+import com.github.libretube.extensions.TAG
 import com.github.libretube.enums.PlaylistType
 import com.github.libretube.extensions.toID
 import com.github.libretube.extensions.toastFromMainDispatcher
@@ -30,6 +32,8 @@ import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.div
+import kotlin.io.path.exists
+import kotlin.io.path.fileSize
 
 object DownloadHelper {
     const val VIDEO_DIR = "video"
@@ -148,6 +152,92 @@ object DownloadHelper {
             downloadInfo.add(context.getString(R.string.captions) + ": ${it.language}")
         }
         return downloadInfo
+    }
+
+    /**
+     * Verify a download by fetching stream metadata from the API and comparing
+     * the real contentLength with the DB downloadSize. Fixes mismatches by
+     * updating downloadSize in the DB. Returns the number of items fixed.
+     * If items are fixed and the file is incomplete, they are enqueued for resume.
+     */
+    suspend fun verifyDownload(context: Context, videoId: String): Int {
+        val dao = DatabaseHolder.Database.downloadDao()
+        val downloadWithItems = dao.getDownloadById(videoId) ?: return 0
+        val items = downloadWithItems.downloadItems.filter { it.type != FileType.SUBTITLE }
+        if (items.isEmpty()) return 0
+
+        val streams = try {
+            MediaServiceRepository.instance.getStreams(videoId)
+        } catch (e: Exception) {
+            android.util.Log.e(TAG(), "verifyDownload: failed to fetch streams for $videoId: ${e.message}")
+            return -1
+        }
+
+        var fixed = 0
+        val toEnqueue = mutableListOf<Int>()
+
+        android.util.Log.i(TAG(), "verifyDownload: videoId=$videoId, items to check=${items.size}")
+
+        for (item in items) {
+            val streamList = if (item.type == FileType.VIDEO) streams.videoStreams else streams.audioStreams
+            val match = streamList.find { it.quality == item.quality && it.format == item.format }
+                ?: streamList.find { it.quality == item.quality }
+
+            if (match == null) {
+                android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — NO MATCH in API (type=${item.type}, q=${item.quality}, fmt=${item.format})")
+                continue
+            }
+
+            val realSize = match.contentLength
+            val fileExists = item.path.exists()
+            val fileSize = if (fileExists) item.path.fileSize() else 0
+            android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize")
+
+            if (realSize <= 0) {
+                android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — API contentLength=$realSize, skipping")
+                continue
+            }
+
+            if (realSize != item.downloadSize) {
+                val diff = kotlin.math.abs(realSize - item.downloadSize)
+                val maxTolerance = maxOf(item.downloadSize / 100, 100_000L) // 1% or 100KB, whichever is larger
+                if (diff <= maxTolerance) {
+                    android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — minor API diff=$diff (within tolerance $maxTolerance), skipping")
+                } else {
+                    android.util.Log.i(TAG(), "verifyDownload: MISMATCH ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize, diff=$diff → updating DB, enqueuing resume")
+                    item.downloadSize = realSize
+                    match.url?.let { newUrl ->
+                        item.url = com.github.libretube.helpers.ProxyHelper.unwrapUrl(newUrl)
+                    }
+                    dao.updateDownloadItem(item)
+                    fixed++
+                    toEnqueue.add(item.id)
+                }
+            } else if (fileExists && fileSize < item.downloadSize) {
+                // DB matches API, but file on disk is smaller — file is truncated
+                val missing = item.downloadSize - fileSize
+                android.util.Log.i(TAG(), "verifyDownload: TRUNCATED ${item.fileName} — DB=${item.downloadSize}, fileOnDisk=$fileSize, missing=$missing → enqueuing resume")
+                match.url?.let { newUrl ->
+                    item.url = com.github.libretube.helpers.ProxyHelper.unwrapUrl(newUrl)
+                }
+                dao.updateDownloadItem(item)
+                fixed++
+                toEnqueue.add(item.id)
+            } else {
+                android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — OK, sizes match")
+            }
+        }
+
+        if (toEnqueue.isNotEmpty()) {
+            startDownloadService(context)
+            // Give the service a moment to start
+            kotlinx.coroutines.delay(500)
+            toEnqueue.forEach { id ->
+                DownloadService.enqueueItem(id)
+            }
+        }
+
+        return fixed
     }
 
     suspend fun deleteDownloadIncludingFiles(downloadWithItems: DownloadWithItems) {
