@@ -14,12 +14,14 @@ import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.DialogImportExportFormatChooserBinding
 import com.github.libretube.enums.ImportFormat
 import com.github.libretube.helpers.BackupHelper
+import com.github.libretube.helpers.FullBackupHelper
 import com.github.libretube.helpers.ImportHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.obj.BackupFile
 import com.github.libretube.ui.base.BasePreferenceFragment
 import com.github.libretube.ui.dialogs.BackupDialog
 import com.github.libretube.ui.dialogs.BackupDialog.Companion.BACKUP_DIALOG_REQUEST_KEY
+import com.github.libretube.ui.dialogs.BackupDialog.Companion.FULL_BACKUP_KEY
 import com.github.libretube.ui.dialogs.RequireRestartDialog
 import com.github.libretube.util.TextUtils
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -32,13 +34,21 @@ import kotlinx.serialization.json.Json
 class BackupRestoreSettings : BasePreferenceFragment() {
     private var backupFile = BackupFile()
     private var importFormat: ImportFormat = ImportFormat.NEWPIPE
+    private var isFullBackup = false
 
     // backup and restore database
     private val getBackupFile =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri == null) return@registerForActivityResult
             CoroutineScope(Dispatchers.IO).launch {
-                BackupHelper.restoreAdvancedBackup(requireContext().applicationContext, uri)
+                // Auto-detect: ZIP = full backup, JSON = legacy backup
+                val isZip = context?.contentResolver?.getType(uri)?.contains("zip") == true
+                    || uri.toString().endsWith(".zip")
+                if (isZip) {
+                    FullBackupHelper.restoreFullBackup(requireContext().applicationContext, uri)
+                } else {
+                    BackupHelper.restoreAdvancedBackup(requireContext().applicationContext, uri)
+                }
                 withContext(Dispatchers.Main) {
                     // could fail if fragment is already closed
                     runCatching {
@@ -50,7 +60,11 @@ class BackupRestoreSettings : BasePreferenceFragment() {
     private val createBackupFile = registerForActivityResult(CreateDocument(FILETYPE_ANY)) { uri ->
         if (uri == null) return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
-            BackupHelper.createAdvancedBackup(requireContext().applicationContext, uri, backupFile)
+            if (isFullBackup) {
+                FullBackupHelper.createFullBackup(requireContext().applicationContext, uri, backupFile)
+            } else {
+                BackupHelper.createAdvancedBackup(requireContext().applicationContext, uri, backupFile)
+            }
         }
     }
 
@@ -199,8 +213,13 @@ class BackupRestoreSettings : BasePreferenceFragment() {
         ) { _, resultBundle ->
             val encodedBackupFile = resultBundle.getString(IntentData.backupFile)!!
             backupFile = Json.decodeFromString(encodedBackupFile)
+            isFullBackup = resultBundle.getBoolean(FULL_BACKUP_KEY)
             val timestamp = TextUtils.getFileSafeTimeStampNow()
-            createBackupFile.launch("libretube-backup-${timestamp}.json")
+            if (isFullBackup) {
+                createBackupFile.launch("libretube-backup-${timestamp}.zip")
+            } else {
+                createBackupFile.launch("libretube-backup-${timestamp}.json")
+            }
         }
         val advancedBackup = findPreference<Preference>("backup")
         advancedBackup?.setOnPreferenceClickListener {
@@ -210,7 +229,7 @@ class BackupRestoreSettings : BasePreferenceFragment() {
 
         val restoreAdvancedBackup = findPreference<Preference>("restore")
         restoreAdvancedBackup?.setOnPreferenceClickListener {
-            getBackupFile.launch(JSON)
+            getBackupFile.launch("*/*")
             true
         }
     }

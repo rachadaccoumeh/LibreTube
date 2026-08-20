@@ -3,6 +3,8 @@ package com.github.libretube.ui.dialogs
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.widget.CheckBox
 import androidx.annotation.StringRes
 import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
@@ -97,8 +99,13 @@ class BackupDialog : DialogFragment() {
 
         val selected = BooleanArray(backupOptions.size) { true }
 
+        val inflater = LayoutInflater.from(requireContext())
+        val customView = inflater.inflate(R.layout.dialog_backup_options, null)
+        val fullBackupCheckbox = customView.findViewById<CheckBox>(R.id.full_backup_checkbox)
+
         return MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.backup)
+            .setView(customView)
             .setMultiChoiceItems(backupItems, selected) { _, index, newValue ->
                 selected[index] = newValue
             }
@@ -107,6 +114,7 @@ class BackupDialog : DialogFragment() {
             .show()
             .apply {
                 getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                    val isFullBackup = fullBackupCheckbox.isChecked
                     requireDialog().hide()
 
                     lifecycleScope.launch(Dispatchers.IO) {
@@ -119,7 +127,10 @@ class BackupDialog : DialogFragment() {
                         val encodedBackupFile = Json.encodeToString(backupFile)
                         setFragmentResult(
                             BACKUP_DIALOG_REQUEST_KEY,
-                            bundleOf(IntentData.backupFile to encodedBackupFile)
+                            bundleOf(
+                                IntentData.backupFile to encodedBackupFile,
+                                FULL_BACKUP_KEY to isFullBackup
+                            )
                         )
 
                         dialog?.dismiss()
@@ -130,5 +141,6 @@ class BackupDialog : DialogFragment() {
 
     companion object {
         const val BACKUP_DIALOG_REQUEST_KEY = "backup_dialog_request_key"
+        const val FULL_BACKUP_KEY = "full_backup"
     }
 }

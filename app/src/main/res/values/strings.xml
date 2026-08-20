@@ -284,6 +284,12 @@
     <string name="backup">Backup</string>
     <string name="backup_creation_success">Backup completed successfully</string>
     <string name="backup_creation_failed">Failed to create backup</string>
+    <string name="full_backup">Include downloaded files</string>
+    <string name="full_backup_summary">Creates a ZIP with all app data and downloaded videos, audio, thumbnails, and subtitles</string>
+    <string name="full_backup_invalid">Invalid backup file: missing metadata</string>
+    <string name="full_backup_newer_db">This backup was created with a newer database version. Please update the app before restoring.</string>
+    <string name="restore_success">Restore completed successfully</string>
+    <string name="restore_failed">Failed to restore backup</string>
     <string name="picture_in_picture">Picture-in-Picture</string>
     <string name="pip">PiP</string>
     <string name="player_resize_mode">Resize mode</string>
