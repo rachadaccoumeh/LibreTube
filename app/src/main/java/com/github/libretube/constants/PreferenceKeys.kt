@@ -123,6 +123,15 @@ object PreferenceKeys {
     // History
     const val SELECTED_HISTORY_STATUS_FILTER = "filter_history_status"
 
+    // AI
+    const val AI_PROVIDER = "ai_provider"
+    const val AI_API_URL = "ai_api_url"
+    const val AI_API_KEY = "ai_api_key"
+    const val AI_MODEL = "ai_model"
+
+    // Player appearance
+    const val PLAYER_ICON_ACTIONS = "player_icon_actions"
+
     // Internally saved data / not a preference
     const val ERROR_LOG = "error_log"
     const val AUTH_PREF_FILE = "auth"

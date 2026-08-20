@@ -42,6 +42,13 @@
 
     <PreferenceCategory app:title="@string/behavior">
 
+        <SwitchPreferenceCompat
+            android:icon="@drawable/ic_grid"
+            android:summary="@string/player_icon_actions_summary"
+            app:defaultValue="false"
+            app:key="player_icon_actions"
+            app:title="@string/player_icon_actions" />
+
         <com.github.libretube.ui.views.SliderPreference
             android:icon="@drawable/ic_skip"
             app:defValue="10.0"

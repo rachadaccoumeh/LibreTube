@@ -120,5 +120,17 @@
         app:popEnterAnim="@animator/nav_default_pop_enter_anim"
         app:popExitAnim="@animator/nav_default_pop_exit_anim" />
 
+    <fragment
+        android:id="@+id/aiSettings"
+        android:name="com.github.libretube.ui.preferences.AiSettings"
+        android:label="@string/ai" />
+
+    <action
+        android:id="@+id/action_global_aiSettings"
+        app:destination="@id/aiSettings"
+        app:enterAnim="@animator/nav_default_enter_anim"
+        app:exitAnim="@animator/nav_default_exit_anim"
+        app:popEnterAnim="@animator/nav_default_pop_enter_anim"
+        app:popExitAnim="@animator/nav_default_pop_exit_anim" />
 
 </navigation>

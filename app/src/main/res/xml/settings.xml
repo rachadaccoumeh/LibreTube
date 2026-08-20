@@ -56,6 +56,12 @@
         app:summary="@string/backup_restore_summary"
         app:title="@string/backup_restore" />
 
+    <Preference
+        android:icon="@drawable/ic_ai"
+        app:key="ai"
+        app:summary="@string/ai_summary"
+        app:title="@string/ai" />
+
     <PreferenceCategory>
 
         <Preference

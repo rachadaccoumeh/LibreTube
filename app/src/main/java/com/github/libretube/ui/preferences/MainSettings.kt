@@ -47,7 +47,8 @@ class MainSettings : BasePreferenceFragment() {
             "audio_video" to R.id.action_global_audioVideoSettings,
             "history" to R.id.action_global_historySettings,
             "notifications" to R.id.action_global_notificationSettings,
-            "backup_restore" to R.id.action_global_backupRestoreSettings
+            "backup_restore" to R.id.action_global_backupRestoreSettings,
+            "ai" to R.id.action_global_aiSettings
         ).forEach { (preferenceKey, actionId) ->
             findPreference<Preference>(preferenceKey)?.setOnPreferenceClickListener { _ ->
                 findNavController().navigate(actionId)
