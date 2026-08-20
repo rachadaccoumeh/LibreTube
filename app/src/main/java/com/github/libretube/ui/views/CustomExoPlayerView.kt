@@ -176,6 +176,10 @@ class CustomExoPlayerView(
     // if null, use same quality as fullscreen
     private var noFullscreenResolution: Int? = null
 
+    // Timestamp of last fullscreen transition. Touch events within 500ms after are consumed
+    // to prevent broken touch sequences (from view reparenting) from triggering new gestures.
+    private var fullscreenTransitionTimeMs = 0L
+
     init {
         brightnessHelper = BrightnessHelper(activity)
         playerGestureController = PlayerGestureController(activity, this)
@@ -184,12 +188,29 @@ class CustomExoPlayerView(
             playerView = this,
             videoFrameView = backgroundBinding.exoContentFrame,
             onSwipeUpCompleted = {
-                if (!isFullscreen()) playerCallback.toggleFullscreen()
+                fullscreenTransitionTimeMs = System.currentTimeMillis()
+                playerCallback.toggleFullscreen()
             },
             onSwipeDownCompleted = {
-                if (isFullscreen()) playerCallback.toggleFullscreen()
+                if (isFullscreen()) {
+                    fullscreenTransitionTimeMs = System.currentTimeMillis()
+                    playerCallback.toggleFullscreen()
+                }
+            },
+            onSwipeDownScrollCompleted = {
+                fullscreenTransitionTimeMs = System.currentTimeMillis()
+                playerCallback.toggleFullscreen(portrait = true)
             }
         )
+    }
+
+    /**
+     * Reset the fullscreen gesture controller state. Called after fullscreen transitions
+     * because reparenting the player view disrupts the touch sequence (ACTION_UP is lost).
+     */
+    fun resetFullscreenGesture() {
+        fullscreenGestureAnimationController.reset()
+        fullscreenTransitionTimeMs = System.currentTimeMillis()
     }
 
     fun initialize(
@@ -1307,6 +1328,24 @@ class CustomExoPlayerView(
         gestureViewBinding.volumeControlView.isGone = true
     }
 
+    /**
+     * Drive the fullscreen gesture animation from the scroll-down gesture (portrait fullscreen).
+     * Called with the raw drag distance so the video frame scales live with the finger.
+     */
+    fun onSwipeDownScrollProgress(dragDistance: Float) {
+        if (!PlayerHelper.fullscreenGesturesEnabled) return
+        if (isFullscreen()) return
+        fullscreenGestureAnimationController.onSwipeDownScroll(dragDistance)
+    }
+
+    /**
+     * Complete the scroll-down gesture. Triggers portrait fullscreen if the threshold was met.
+     */
+    fun onSwipeDownScrollEnd(enterFullscreen: Boolean) {
+        if (!PlayerHelper.fullscreenGesturesEnabled) return
+        fullscreenGestureAnimationController.onSwipeDownScrollEnd(enterFullscreen)
+    }
+
     override fun onZoom() {
         if (!PlayerHelper.pinchGestureEnabled) return
         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
@@ -1397,7 +1436,9 @@ class CustomExoPlayerView(
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event == null) return false
-        if (!useController) return false
+        if (!useController) {
+            return false
+        }
 
         return playerGestureController.onTouchEvent(event)
     }
