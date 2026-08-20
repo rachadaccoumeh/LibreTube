@@ -495,6 +495,16 @@ class DownloadService : LifecycleService() {
         val item = Database.downloadDao().findDownloadItemById(id) ?: return@launch
         notificationManager.cancel(item.getNotificationId())
         Database.downloadDao().deleteDownloadItemById(id)
+
+        // If no more DownloadItems exist for this videoId, delete the parent Download
+        // to avoid an orphaned Download entry that can't be resumed or interacted with
+        if (Database.downloadDao().countDownloadItemsByVideoId(item.videoId) == 0) {
+            val downloadWithItems = Database.downloadDao().getDownloadById(item.videoId)
+            if (downloadWithItems != null) {
+                Database.downloadDao().deleteDownload(downloadWithItems.download)
+            }
+        }
+
         stopServiceIfDone()
     }
 

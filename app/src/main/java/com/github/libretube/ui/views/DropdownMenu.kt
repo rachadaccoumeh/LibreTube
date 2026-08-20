@@ -6,9 +6,11 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.ArrayAdapter
 import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.use
 import com.github.libretube.R
 import com.github.libretube.databinding.DropdownMenuBinding
+import com.google.android.material.textfield.TextInputLayout
 
 /**
  * Exposed Dropdown Menu
@@ -65,6 +67,20 @@ class DropdownMenu(
 
     fun getSelectionIfNotFirst(): String? {
         return selectedItem.takeIf { selectedItemPosition != 0 }
+    }
+
+    fun setEndIconDrawable(resourceId: Int) {
+        binding.textInputLayout.endIconDrawable = ContextCompat.getDrawable(context, resourceId)
+        binding.textInputLayout.endIconMode = TextInputLayout.END_ICON_CUSTOM
+    }
+
+    fun clearEndIcon() {
+        binding.textInputLayout.endIconDrawable = null
+        binding.textInputLayout.endIconMode = TextInputLayout.END_ICON_NONE
+    }
+
+    fun setEndIconOnClickListener(listener: OnClickListener) {
+        binding.textInputLayout.setEndIconOnClickListener(listener)
     }
 
     init {

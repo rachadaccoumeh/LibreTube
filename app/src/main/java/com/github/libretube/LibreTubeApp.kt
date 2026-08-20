@@ -18,7 +18,7 @@ class LibreTubeApp : Application() {
         super.onCreate()
         instance = this
 
-        Log.i("LibreTubeApp", "=== BUILD STAMP: v31.4-fix14 ===")
+        Log.i("LibreTubeApp", "=== BUILD STAMP: v31.4-fix15-recovery ===")
 
         /**
          * Initialize the needed notification channels for DownloadService and BackgroundMode

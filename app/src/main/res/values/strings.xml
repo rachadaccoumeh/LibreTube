@@ -386,6 +386,9 @@
     <string name="proceed">Proceed</string>
     <string name="play_latest_videos">Play latest videos</string>
     <string name="nothing_selected">Nothing selected!</string>
+    <string name="already_downloaded">Already downloaded</string>
+    <string name="already_downloaded_video">This video quality is already downloaded. Download again?</string>
+    <string name="already_downloaded_audio">This audio quality is already downloaded. Download again?</string>
     <string name="color_violet">Versatile violet</string>
     <string name="failed_fetching_instances">Could not fetch available instances.</string>
     <string name="hide_watched_from_feed">Hide already watched videos</string>
