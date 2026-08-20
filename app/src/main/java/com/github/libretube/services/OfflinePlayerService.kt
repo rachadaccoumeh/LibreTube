@@ -126,10 +126,13 @@ open class OfflinePlayerService : AbstractPlayerService() {
             setMediaItem(downloadWithItems)
 
             // automatically start playback when using the audio player
-            exoPlayer?.playWhenReady = PlayerHelper.playAutomatically || isAudioOnlyPlayer
+            exoPlayer?.playWhenReady = (PlayerHelper.playAutomatically || isAudioOnlyPlayer) && !playerData.startPaused
             exoPlayer?.prepare()
 
-            if (watchPositionsEnabled) {
+            // seek to the provided timestamp if available, otherwise use watch position
+            if (playerData.timestamp > 0) {
+                exoPlayer?.seekTo(playerData.timestamp * 1000)
+            } else if (watchPositionsEnabled) {
                 DatabaseHelper.getWatchPosition(videoId)?.let {
                     if (!DatabaseHelper.isVideoWatched(
                             it,

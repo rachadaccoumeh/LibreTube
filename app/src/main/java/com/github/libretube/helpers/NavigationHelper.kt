@@ -153,12 +153,14 @@ object NavigationHelper {
         context: Context,
         playerData: PlayerData,
         alreadyStarted: Boolean = false,
+        minimizeByDefault: Boolean = false,
     ) {
         val activity = ContextHelper.unwrapActivity<BaseActivity>(context)
 
         val bundle = bundleOf(
             IntentData.playerData to playerData,
             IntentData.alreadyStarted to alreadyStarted,
+            IntentData.minimizeByDefault to minimizeByDefault,
         )
         activity.supportFragmentManager.commitNow {
             replace<PlayerFragment>(R.id.container, args = bundle)
