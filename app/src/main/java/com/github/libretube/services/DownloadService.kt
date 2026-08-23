@@ -101,35 +101,95 @@ class DownloadService : LifecycleService() {
     val downloadFlow: SharedFlow<Pair<Int, DownloadStatus>> = _downloadFlow
 
     /**
+     * Downloads paused by the user (not by metered network). Prevents auto-resume.
+     */
+    private val pausedByUser = mutableSetOf<Int>()
+
+    /**
+     * Downloads that failed and should not auto-retry.
+     */
+    private val failedDownloads = mutableSetOf<Int>()
+
+    /**
      * Cache that contains all the already-loaded video info.
      */
     private val cachedStreamsInfo: MutableMap<String, Streams> = mutableMapOf()
 
+    companion object {
+        private const val DOWNLOAD_NOTIFICATION_GROUP = "download_notification_group"
+        const val ACTION_SERVICE_STARTED =
+            "com.github.libretube.services.DownloadService.ACTION_SERVICE_STARTED"
+        const val ACTION_SERVICE_STOPPED =
+            "com.github.libretube.services.DownloadService.ACTION_SERVICE_STOPPED"
+        const val ACTION_RESUME_ALL =
+            "com.github.libretube.services.DownloadService.ACTION_RESUME_ALL"
+        const val ACTION_PAUSE_ALL =
+            "com.github.libretube.services.DownloadService.ACTION_PAUSE_ALL"
+
+        private const val MAX_SEGMENT_RETRIES = 3
+        var IS_DOWNLOAD_RUNNING = false
+
+        @Volatile
+        private var instance: DownloadService? = null
+
+        fun isItemIdInQueue(id: Int): Boolean {
+            val svc = instance ?: return false
+            var found = false
+            for (key in svc.downloadQueue.keyIterator()) {
+                if (key == id) {
+                    found = true
+                    break
+                }
+            }
+            return found && !svc.pausedByUser.contains(id)
+        }
+
+        fun enqueueItem(id: Int) {
+            val svc = instance ?: return
+            svc.pausedByUser.remove(id)
+            svc.failedDownloads.remove(id)
+            if (!svc.downloadQueue[id]) {
+                svc.resume(id)
+            }
+        }
+
+        fun dequeueItem(id: Int) {
+            val svc = instance ?: return
+            svc.pause(id, byUser = true)
+        }
+    }
+
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     override fun onCreate() {
         super.onCreate()
         IS_DOWNLOAD_RUNNING = true
+        instance = this
         notifyForeground()
+        registerNetworkChangedCallback()
         sendBroadcast(Intent(ACTION_SERVICE_STARTED))
     }
 
     /**
-     * Listen for network changes and pause the download if the network connection becomes metered
+     * Listen for network changes and pause the download if the network connection becomes metered.
+     * Only registered once to avoid duplicate callbacks.
      */
     fun registerNetworkChangedCallback() {
+        if (networkCallback != null) return
         val connectivityManager = getSystemService<ConnectivityManager>()
-        connectivityManager?.registerDefaultNetworkCallback(object :
-            ConnectivityManager.NetworkCallback() {
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 super.onAvailable(network)
 
-                // pause all downloads when switching to an unmetered connection
+                // pause all downloads when switching to a metered connection
                 if (NetworkHelper.isNetworkMetered(this@DownloadService)) {
                     for (download in downloadQueue.keyIterator()) {
-                        pause(download)
+                        pause(download, byUser = false)
                     }
                 }
             }
-        })
+        }
+        connectivityManager?.registerDefaultNetworkCallback(networkCallback!!)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -140,9 +200,8 @@ class DownloadService : LifecycleService() {
             ACTION_DOWNLOAD_PAUSE -> pause(downloadId!!)
             ACTION_DOWNLOAD_STOP -> stop(downloadId!!)
             ACTION_RESUME_ALL -> resumeAll()
+            ACTION_PAUSE_ALL -> pauseAll()
         }
-
-        registerNetworkChangedCallback()
 
         val downloadData = intent?.parcelableExtra<DownloadData>(IntentData.downloadData)
             ?: return START_NOT_STICKY
@@ -263,7 +322,14 @@ class DownloadService : LifecycleService() {
      */
     @SuppressLint("UnsafeOptInUsageError")
     private suspend fun selectFormatAndDownloadFile(item: DownloadItem) {
-        val streams = loadStreamsInfo(item.videoId) ?: return
+        val streams = loadStreamsInfo(item.videoId) ?: run {
+            // Try regenerating link if we have a stale item
+            val regenerated = regenerateLink(item)
+            if (regenerated != null) {
+                // Re-fetch streams info with the regenerated link
+                loadStreamsInfo(item.videoId)
+            } else null
+        } ?: return
         if (item.type == FileType.SUBTITLE) {
             // subtitles are always plain files and don't use SABR
             val subtitle = streams.subtitles.firstOrNull { it.code == item.language } ?: return
@@ -441,15 +507,68 @@ class DownloadService : LifecycleService() {
 
     /**
      * Pause downloading job for given [id]. If no downloads are active, stop the service.
+     * @param byUser true if paused by user action, false if paused by system (e.g. metered network)
      */
-    fun pause(id: Int) {
+    fun pause(id: Int, byUser: Boolean = true) {
         downloadQueue[id] = false
+        if (byUser) {
+            pausedByUser.add(id)
+        }
 
         lifecycleScope.launch(coroutineContext) {
             _downloadFlow.emit(id to DownloadStatus.Paused)
         }
 
         stopServiceIfDone()
+    }
+
+    /**
+     * Pause all active downloads. Also marks queue-waiting downloads as paused by user
+     * so they don't auto-resume when a slot frees up.
+     */
+    fun pauseAll() {
+        for (id in downloadQueue.keyIterator()) {
+            if (downloadQueue[id]) {
+                pause(id, byUser = true)
+            } else {
+                pausedByUser.add(id)
+            }
+        }
+    }
+
+    /**
+     * Resume all incomplete downloads: find them in DB and queue them.
+     */
+    fun resumeAllIncomplete() {
+        lifecycleScope.launch(coroutineContext) {
+            val incompleteItems = withContext(Dispatchers.IO) {
+                Database.downloadDao().getAll()
+                    .flatMap { it.downloadItems }
+                    .filter { !it.isFinished }
+            }
+
+            incompleteItems.forEach {
+                pausedByUser.remove(it.id)
+                failedDownloads.remove(it.id)
+                if (!downloadQueue.contains(it.id)) {
+                    downloadQueue.put(it.id, false)
+                }
+            }
+
+            val current = downloadQueue.valueIterator().asSequence().count { it }
+            val slotsToFill = DownloadHelper.MAX_CONCURRENT_DOWNLOADS - current
+
+            if (slotsToFill > 0) {
+                val candidates = incompleteItems.filter { !downloadQueue[it.id] }
+                    .take(slotsToFill)
+
+                candidates.forEach { item ->
+                    launch {
+                        selectFormatAndDownloadFile(item)
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -528,6 +647,18 @@ class DownloadService : LifecycleService() {
         return stream?.find {
             it.format == item.format && it.quality == item.quality && it.audioTrackLocale == item.language
         }
+    }
+
+    /**
+     * Attempt to regenerate a download URL by re-fetching streams from the API.
+     * Called when a download fails due to expired/stale stream info.
+     * Returns the matching stream, or null if no match found.
+     */
+    private suspend fun regenerateLink(item: DownloadItem): PipedStream? {
+        val streams = runCatching {
+            loadStreamsInfo(item.videoId)
+        }.getOrNull() ?: return null
+        return selectMatchingStream(streams, item)
     }
 
     /**
@@ -662,6 +793,13 @@ class DownloadService : LifecycleService() {
 
     override fun onDestroy() {
         downloadQueue.clear()
+        pausedByUser.clear()
+        failedDownloads.clear()
+        networkCallback?.let {
+            getSystemService<ConnectivityManager>()?.unregisterNetworkCallback(it)
+        }
+        networkCallback = null
+        instance = null
         IS_DOWNLOAD_RUNNING = false
         sendBroadcast(Intent(ACTION_SERVICE_STOPPED))
         super.onDestroy()
@@ -675,18 +813,5 @@ class DownloadService : LifecycleService() {
 
     inner class LocalBinder : Binder() {
         fun getService(): DownloadService = this@DownloadService
-    }
-
-    companion object {
-        private const val DOWNLOAD_NOTIFICATION_GROUP = "download_notification_group"
-        const val ACTION_SERVICE_STARTED =
-            "com.github.libretube.services.DownloadService.ACTION_SERVICE_STARTED"
-        const val ACTION_SERVICE_STOPPED =
-            "com.github.libretube.services.DownloadService.ACTION_SERVICE_STOPPED"
-        const val ACTION_RESUME_ALL =
-            "com.github.libretube.services.DownloadService.ACTION_RESUME_ALL"
-
-        private const val MAX_SEGMENT_RETRIES = 3
-        var IS_DOWNLOAD_RUNNING = false
     }
 }

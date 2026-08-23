@@ -204,11 +204,8 @@ object DownloadHelper {
                 if (diff <= maxTolerance) {
                     android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — minor API diff=$diff (within tolerance $maxTolerance), skipping")
                 } else {
-                    android.util.Log.i(TAG(), "verifyDownload: MISMATCH ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize, diff=$diff → updating DB, enqueuing resume")
+                    android.util.Log.i("DownloadHelper", "verifyDownload: MISMATCH ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize, diff=$diff → updating DB, enqueuing resume")
                     item.downloadSize = realSize
-                    match.url?.let { newUrl ->
-                        item.url = com.github.libretube.helpers.ProxyHelper.unwrapUrl(newUrl)
-                    }
                     dao.updateDownloadItem(item)
                     fixed++
                     toEnqueue.add(item.id)
@@ -216,10 +213,7 @@ object DownloadHelper {
             } else if (fileExists && fileSize < item.downloadSize) {
                 // DB matches API, but file on disk is smaller — file is truncated
                 val missing = item.downloadSize - fileSize
-                android.util.Log.i(TAG(), "verifyDownload: TRUNCATED ${item.fileName} — DB=${item.downloadSize}, fileOnDisk=$fileSize, missing=$missing → enqueuing resume")
-                match.url?.let { newUrl ->
-                    item.url = com.github.libretube.helpers.ProxyHelper.unwrapUrl(newUrl)
-                }
+                android.util.Log.i("DownloadHelper", "verifyDownload: TRUNCATED ${item.fileName} — DB=${item.downloadSize}, fileOnDisk=$fileSize, missing=$missing → enqueuing resume")
                 dao.updateDownloadItem(item)
                 fixed++
                 toEnqueue.add(item.id)

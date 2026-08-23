@@ -181,6 +181,10 @@
     <string name="quality">Quality</string>
     <string name="behavior">Behavior</string>
     <string name="player_summary">Defaults and behavior</string>
+    <string name="player_icon_actions">Icon-only action buttons</string>
+    <string name="player_icon_actions_summary">Show player actions as icons without text or button background</string>
+    <string name="player_actions">Player action buttons</string>
+    <string name="player_actions_summary">Customize and reorder player action buttons</string>
     <string name="seek_increment">Seek increment</string>
     <string name="pauseOnScreenOff">Auto-pause</string>
     <string name="pauseOnScreenOff_summary">Pause playback when the screen is turned off</string>
@@ -614,4 +618,26 @@
     <string name="import_temp_playlist_summary">Do you want to create a new playlist named \'%1$s\'? The playlist will contain %2$d videos.</string>
     <string name="comment_verified">Verified</string>
     <string name="comment_pinned">Pinned</string>
+
+    <!-- AI -->
+    <string name="ai">AI Assistant</string>
+    <string name="ai_summary">Configure AI provider for video chat and summaries</string>
+    <string name="ai_provider">Provider</string>
+    <string name="ai_api_url">API Base URL</string>
+    <string name="ai_api_key">API Key</string>
+    <string name="ai_model">Model</string>
+    <string name="ai_provider_openai">OpenAI</string>
+    <string name="ai_provider_gemini">Google Gemini</string>
+    <string name="ai_provider_ollama">Ollama (Local)</string>
+    <string name="ai_provider_custom">Custom</string>
+    <string name="ai_not_configured">AI assistant is not configured. Please set up an AI provider in settings first.</string>
+    <string name="ai_go_to_settings">Go to settings</string>
+    <string name="ai_summarize">Summarize video</string>
+    <string name="ai_ask">Ask about this video</string>
+    <string name="ai_send">Send</string>
+    <string name="ai_thinking">Thinking…</string>
+    <string name="ai_error">Failed to get response. Please try again.</string>
+    <string name="ai_no_captions">No captions or subtitles available for this video.</string>
+    <string name="ai_loading_captions">Loading captions…</string>
+    <string name="ai_tooltip">AI Assistant</string>
 </resources>

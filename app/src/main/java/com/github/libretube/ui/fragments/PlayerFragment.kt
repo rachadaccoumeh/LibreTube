@@ -57,6 +57,7 @@ import com.github.libretube.api.obj.Streams
 import com.github.libretube.compat.PictureInPictureCompat
 import com.github.libretube.compat.PictureInPictureParamsCompat
 import com.github.libretube.constants.IntentData
+import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.FragmentPlayerBinding
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.enums.FileType
@@ -76,7 +77,9 @@ import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PlayerHelper.getCurrentSegment
+import com.github.libretube.helpers.PlayerActionsHelper
 import com.github.libretube.helpers.PlayerStateHelper
+import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ThemeHelper
 import com.github.libretube.helpers.WindowHelper
 import com.github.libretube.obj.ShareData
@@ -102,12 +105,14 @@ import com.github.libretube.ui.models.ChaptersViewModel
 import com.github.libretube.ui.models.CommentsViewModel
 import com.github.libretube.ui.models.CommonPlayerViewModel
 import com.github.libretube.ui.models.PlayerViewModel
+import com.github.libretube.ui.sheets.AiChatBottomSheet
 import com.github.libretube.ui.sheets.CommentsSheet
 import com.github.libretube.util.OfflineTimeFrameReceiver
 import com.github.libretube.util.OnlineTimeFrameReceiver
 import com.github.libretube.util.PlayingQueue
 import com.github.libretube.util.TextUtils
 import com.github.libretube.util.TextUtils.toTimeInSeconds
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -139,6 +144,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     var isOffline: Boolean = false
         private set
     private var downloadTab: DownloadTab? = null
+    private var isDownloaded: Boolean = false
 
     // data and objects stored for the player
     private lateinit var streams: Streams
@@ -328,6 +334,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
             maybeStreams?.let { streams ->
                 this@PlayerFragment.streams = streams
+                commonPlayerViewModel.clearAiState()
                 viewModel.segments.postValue(emptyList())
                 updatePlayerView()
             }
@@ -615,6 +622,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 }
 
                 this.streams = streams
+                commonPlayerViewModel.clearAiState()
                 updatePlayerView()
             }
         }
@@ -795,6 +803,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             DownloadHelper.startDownloadDialog(requireContext(), childFragmentManager, videoId)
         }
 
+        binding.relPlayerAi.setOnClickListener {
+            if (!this::streams.isInitialized) return@setOnClickListener
+            openAiChat()
+        }
+
         binding.relPlayerScreenshot.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
             val surfaceView =
@@ -894,7 +907,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     /**
      * Enter/exit fullscreen or toggle it depending on the current state
      */
-    override fun toggleFullscreen() {
+    override fun toggleFullscreen(portrait: Boolean) {
         binding.player.hideController()
 
         val isFullscreen = commonPlayerViewModel.isFullscreen.value == true
@@ -1491,6 +1504,47 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private fun disableController() {
         binding.player.useController = false
         binding.player.hideController()
+    }
+
+    private fun openAiChat() {
+        updateMaxSheetHeight()
+        AiChatBottomSheet(
+            streams = streams,
+            videoId = videoId,
+            onSeekTo = { timestampMs ->
+                if (::playerController.isInitialized) {
+                    playerController.seekTo(timestampMs)
+                }
+            }
+        ).show(childFragmentManager, null)
+    }
+
+    private fun showDeleteDownloadDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.delete)
+            .setMessage(R.string.irreversible)
+            .setPositiveButton(R.string.okay) { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val downloadWithItems = DatabaseHolder.Database.downloadDao().getDownloadById(videoId)
+                    if (downloadWithItems != null) {
+                        DownloadHelper.deleteDownloadIncludingFiles(downloadWithItems)
+                    }
+                    withContext(Dispatchers.Main) {
+                        isDownloaded = false
+                        if (_binding != null) {
+                            binding.relPlayerDownload.apply {
+                                setIconResource(R.drawable.ic_download)
+                                if (!PreferenceHelper.getBoolean(PreferenceKeys.PLAYER_ICON_ACTIONS, false)) {
+                                    text = getString(R.string.download)
+                                }
+                            }
+                        }
+                        Snackbar.make(binding.root, R.string.deleted, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
