@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import android.util.Log
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.media.session.PlaybackState
@@ -68,6 +69,7 @@ import com.github.libretube.enums.ShareObjectType
 import com.github.libretube.extensions.formatShort
 import com.github.libretube.extensions.parcelable
 import com.github.libretube.extensions.serializableExtra
+import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.toID
 import com.github.libretube.extensions.togglePlayPauseState
 import com.github.libretube.extensions.updateIfChanged
@@ -1343,7 +1345,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             val downloadItems =
                 DatabaseHolder.Database.downloadDao().getDownloadById(videoId)?.downloadItems
             downloadItems?.firstOrNull { it.path.exists() && it.type == FileType.VIDEO }?.path?.let {
-                OfflineTimeFrameReceiver(requireContext(), it)
+                try {
+                    OfflineTimeFrameReceiver(requireContext(), it)
+                } catch (e: Exception) {
+                    Log.e(TAG(), "getTimeFrameReceiver: failed to create OfflineTimeFrameReceiver: ${e.message}")
+                    null
+                }
             }
         } else {
             if (!::streams.isInitialized) return@withContext null
