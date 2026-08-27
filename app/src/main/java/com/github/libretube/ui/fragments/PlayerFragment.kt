@@ -1343,7 +1343,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             )
             playerChannelSubCount.isVisible = streams.uploaderSubscriberCount >= 0
 
-            relPlayerDownload.isVisible = !streams.isLive && !isOffline
+            relPlayerDownload.isVisible = !streams.isLive
         }
         playerControlsBinding.exoTitle.text = streams.title
 
