@@ -1305,10 +1305,14 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 binding.relPlayerDownload.apply {
                     if (isDownloaded) {
                         setIconResource(R.drawable.ic_download_filled)
-                        text = getString(R.string.downloaded)
+                        if (!PreferenceHelper.getBoolean(PreferenceKeys.PLAYER_ICON_ACTIONS, false)) {
+                            text = getString(R.string.downloaded)
+                        }
                     } else {
                         setIconResource(R.drawable.ic_download)
-                        text = getString(R.string.download)
+                        if (!PreferenceHelper.getBoolean(PreferenceKeys.PLAYER_ICON_ACTIONS, false)) {
+                            text = getString(R.string.download)
+                        }
                     }
                 }
             }
