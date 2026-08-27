@@ -827,7 +827,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         binding.relPlayerDownload.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
 
-            DownloadHelper.startDownloadDialog(requireContext(), childFragmentManager, videoId)
+            if (isDownloaded) {
+                showDeleteDownloadDialog()
+            } else {
+                DownloadHelper.startDownloadDialog(requireContext(), childFragmentManager, videoId)
+            }
         }
 
         binding.relPlayerAi.setOnClickListener {
@@ -1291,6 +1295,24 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         dismissCommentsSheet()
 
         setPlayerDefaults()
+
+        // check if the video is downloaded to update the download button state
+        lifecycleScope.launch(Dispatchers.IO) {
+            val downloaded = DatabaseHolder.Database.downloadDao().exists(videoId)
+            withContext(Dispatchers.Main) {
+                isDownloaded = downloaded
+                if (_binding == null) return@withContext
+                binding.relPlayerDownload.apply {
+                    if (isDownloaded) {
+                        setIconResource(R.drawable.ic_download_filled)
+                        text = getString(R.string.downloaded)
+                    } else {
+                        setIconResource(R.drawable.ic_download)
+                        text = getString(R.string.download)
+                    }
+                }
+            }
+        }
 
         binding.player.useController = false
 
