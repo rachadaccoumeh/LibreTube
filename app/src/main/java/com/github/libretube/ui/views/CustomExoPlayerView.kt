@@ -199,7 +199,7 @@ class CustomExoPlayerView(
             },
             onSwipeDownScrollCompleted = {
                 fullscreenTransitionTimeMs = System.currentTimeMillis()
-                playerCallback.toggleFullscreen(portrait = false)
+                playerCallback.toggleFullscreen(portrait = true)
             }
         )
     }

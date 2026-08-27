@@ -19,11 +19,11 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/resume_all"
+                style="?attr/materialIconButtonOutlinedStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/resume_all"
                 android:contentDescription="@string/resume_all"
-                app:icon="@drawable/ic_play"
+                app:icon="@drawable/ic_download"
                 android:tooltipText="@string/resume_all"
                 android:visibility="gone"
                 tools:targetApi="o"
