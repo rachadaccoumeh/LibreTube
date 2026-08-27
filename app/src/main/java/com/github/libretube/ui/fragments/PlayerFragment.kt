@@ -201,6 +201,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         object : Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen) {
             @Deprecated("Deprecated in Java", ReplaceWith("onbackpressedispatcher and callback"))
             override fun onBackPressed() {
+                // Safety net: ignore back press right after entering fullscreen
+                val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+                if (timeSinceEnter < 500) return
                 unsetFullscreen()
             }
 
@@ -539,8 +542,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (commonPlayerViewModel.isFullscreen.value == true) unsetFullscreen()
-                else {
+                if (commonPlayerViewModel.isFullscreen.value == true) {
+                    // Safety net: ignore back press right after entering fullscreen
+                    val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+                    if (timeSinceEnter < 500) return
+                    unsetFullscreen()
+                } else {
                     binding.playerMotionLayout.setTransitionDuration(250)
                     binding.playerMotionLayout.transitionToEnd()
                     baseActivity.minimizePlayerContainerLayout()
@@ -690,6 +697,24 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 }
             }
 
+        // detect swipe down on the scroll area (title/description) to enter fullscreen
+        // with live animation feedback during the drag
+        binding.playerMotionLayout.addSwipeDownOnScrollListener { dragDistance ->
+            if (PlayerHelper.fullscreenGesturesEnabled &&
+                commonPlayerViewModel.isFullscreen.value != true
+            ) {
+                binding.player.onSwipeDownScrollProgress(dragDistance)
+            }
+        }
+
+        binding.playerMotionLayout.addSwipeDownOnScrollEndListener { enterFullscreen ->
+            if (PlayerHelper.fullscreenGesturesEnabled &&
+                commonPlayerViewModel.isFullscreen.value != true
+            ) {
+                binding.player.onSwipeDownScrollEnd(enterFullscreen)
+            }
+        }
+
         if (requireArguments().getBoolean(IntentData.minimizeByDefault, false)) {
             binding.playerMotionLayout.progress = 0F
             binding.playerMotionLayout.transitionToEnd()
@@ -836,6 +861,52 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
 
         binding.descriptionLayout.handleLink = this::handleLink
+
+        applyPlayerActionStyle()
+    }
+
+    private fun applyPlayerActionStyle() {
+        val iconOnly = PreferenceHelper.getBoolean(
+            PreferenceKeys.PLAYER_ICON_ACTIONS, false
+        )
+
+        val buttons = listOf(
+            binding.relPlayerShare,
+            binding.relPlayerDownload,
+            binding.relPlayerAi,
+            binding.relPlayerSave,
+            binding.relPlayerBackground,
+            binding.relPlayerPip,
+            binding.relPlayerScreenshot
+        )
+
+        for (btn in buttons) {
+            if (iconOnly) {
+                btn.text = null
+                btn.iconSize = 24f.dpToPx()
+            }
+            // Re-apply style by setting visibility helper — MaterialButton style
+            // can't be changed at runtime, so we manually adjust properties
+            if (iconOnly) {
+                btn.background = null
+                btn.setPadding(0, 0, 0, 0)
+                btn.minimumWidth = 0
+                btn.minimumHeight = 0
+                val size = 48f.dpToPx()
+                btn.layoutParams = btn.layoutParams.apply {
+                    width = size
+                    height = size
+                    if (this is android.widget.LinearLayout.LayoutParams) {
+                        marginStart = 2
+                        marginEnd = 2
+                    }
+                }
+            }
+        }
+    }
+
+    private fun Float.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
     }
 
     private fun updateMaxSheetHeight() {
@@ -873,12 +944,23 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         baseActivity.requestedOrientation = PlayerHelper.getFullscreenOrientation(streams.isShort)
     }
 
-    private fun setFullscreen() {
+    // Timestamp of last fullscreen enter. Used to debounce gesture-based exits
+    // that are caused by broken touch sequences from view reparenting.
+    private var lastFullscreenEnterTime = 0L
+
+    private fun setFullscreen(portrait: Boolean = false) {
+        lastFullscreenEnterTime = System.currentTimeMillis()
+
         // set status bar icon color to white
         windowInsetsControllerCompat.isAppearanceLightStatusBars = false
 
         commonPlayerViewModel.isFullscreen.value = true
-        updateFullscreenOrientation()
+
+        if (portrait) {
+            baseActivity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        } else {
+            baseActivity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
 
         commonPlayerViewModel.setSheetExpand(null)
 
@@ -901,6 +983,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         binding.player.updateMarginsByFullscreenMode()
 
+        // reset gesture animation state in case a swipe was in progress
+        binding.player.resetFullscreenGesture()
+
         // set status bar icon color back to theme color after fullscreen dialog closed!
         windowInsetsControllerCompat.isAppearanceLightStatusBars =
             !ThemeHelper.isDarkMode(requireContext())
@@ -915,9 +1000,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         val isFullscreen = commonPlayerViewModel.isFullscreen.value == true
         if (!isFullscreen) {
             // go to fullscreen mode
-            setFullscreen()
+            setFullscreen(portrait)
         } else {
             // exit fullscreen mode
+            // Safety net: ignore exits right after entering fullscreen
+            val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+            if (timeSinceEnter < 500) return
             unsetFullscreen()
         }
     }
@@ -973,6 +1061,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         if (closedVideo) {
             closedVideo = false
         }
+
+        // re-apply player action button style in case it was changed in settings
+        applyPlayerActionStyle()
 
         // re-enable the autoplay countdown
         setAutoPlayCountdownEnabled(PlayerHelper.autoPlayCountdown)
@@ -1497,11 +1588,16 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
 
         if (PlayerHelper.autoFullscreenEnabled) {
+            val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
             when (newConfig.orientation) {
                 // go to fullscreen mode
                 Configuration.ORIENTATION_LANDSCAPE -> setFullscreen()
                 // exit fullscreen if not landscape
-                else -> unsetFullscreen()
+                else -> {
+                    // Safety net: ignore exits right after entering fullscreen
+                    if (timeSinceEnter < 500) return
+                    unsetFullscreen()
+                }
             }
         }
 
