@@ -80,6 +80,10 @@ class LocalFeedRepository : FeedRepository {
     ) {
         if (channelIds.isEmpty()) return
 
+        // remember when already-known videos were first fetched, so REPLACE doesn't reset it
+        val existingInsertTimes = DatabaseHolder.Database.feedDao().getAll()
+            .associate { it.videoId to it.insertedAt }
+
         val totalExtractionCount = AtomicInteger()
         val channelExtractionCount = AtomicInteger()
         withContext(Dispatchers.Main) {
@@ -114,7 +118,12 @@ class LocalFeedRepository : FeedRepository {
             // update subscriptions channels in case they've changed (e.g. different avatar or name)
             SubscriptionHelper.submitSubscriptionChannelInfosChanged(channels.filterNotNull())
             DatabaseHolder.Database.feedDao()
-                .insertAll(collectedFeedItems.flatten().map(StreamItem::toFeedItem))
+                .insertAll(collectedFeedItems.flatten().map { streamItem ->
+                    streamItem.toFeedItem().let { feedItem ->
+                        val existing = existingInsertTimes[feedItem.videoId]
+                        if (existing != null) feedItem.copy(insertedAt = existing) else feedItem
+                    }
+                })
         }
     }
 

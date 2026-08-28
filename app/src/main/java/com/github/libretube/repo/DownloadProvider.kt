@@ -25,9 +25,12 @@ sealed class DownloadProgressResult {
 interface DownloadProvider {
     /**
      * Start or continue downloading from `byteStartPosition`.
+     * [isActive] returns false when the download has been paused/cancelled — the provider
+     * should stop reading and return partial progress immediately.
      */
     suspend fun downloadNextChunk(
         item: DownloadItem,
         sink: BufferedSink,
+        isActive: () -> Boolean = { true },
     ): DownloadProgressResult
 }

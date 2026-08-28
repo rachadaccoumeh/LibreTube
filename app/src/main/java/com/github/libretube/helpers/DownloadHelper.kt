@@ -169,14 +169,14 @@ object DownloadHelper {
         val streams = try {
             MediaServiceRepository.instance.getStreams(videoId)
         } catch (e: Exception) {
-            android.util.Log.e(TAG(), "verifyDownload: failed to fetch streams for $videoId: ${e.message}")
+            android.util.Log.w(TAG(), "verifyDownload: failed to fetch streams for $videoId: ${e.message}")
             return -1
         }
 
         var fixed = 0
         val toEnqueue = mutableListOf<Int>()
 
-        android.util.Log.i(TAG(), "verifyDownload: videoId=$videoId, items to check=${items.size}")
+        android.util.Log.w(TAG(), "verifyDownload: videoId=$videoId, items to check=${items.size}")
 
         for (item in items) {
             val streamList = if (item.type == FileType.VIDEO) streams.videoStreams else streams.audioStreams
@@ -184,17 +184,17 @@ object DownloadHelper {
                 ?: streamList.find { it.quality == item.quality }
 
             if (match == null) {
-                android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — NO MATCH in API (type=${item.type}, q=${item.quality}, fmt=${item.format})")
+                android.util.Log.w(TAG(), "verifyDownload: ${item.fileName} — NO MATCH in API (type=${item.type}, q=${item.quality}, fmt=${item.format})")
                 continue
             }
 
             val realSize = match.contentLength
             val fileExists = item.path.exists()
             val fileSize = if (fileExists) item.path.fileSize() else 0
-            android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize")
+            android.util.Log.w(TAG(), "verifyDownload: ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize")
 
             if (realSize <= 0) {
-                android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — API contentLength=$realSize, skipping")
+                android.util.Log.w(TAG(), "verifyDownload: ${item.fileName} — API contentLength=$realSize, skipping")
                 continue
             }
 
@@ -202,9 +202,9 @@ object DownloadHelper {
                 val diff = kotlin.math.abs(realSize - item.downloadSize)
                 val maxTolerance = maxOf(item.downloadSize / 100, 100_000L) // 1% or 100KB, whichever is larger
                 if (diff <= maxTolerance) {
-                    android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — minor API diff=$diff (within tolerance $maxTolerance), skipping")
+                    android.util.Log.w(TAG(), "verifyDownload: ${item.fileName} — minor API diff=$diff (within tolerance $maxTolerance), skipping")
                 } else {
-                    android.util.Log.i("DownloadHelper", "verifyDownload: MISMATCH ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize, diff=$diff → updating DB, enqueuing resume")
+                    android.util.Log.w("DownloadHelper", "verifyDownload: MISMATCH ${item.fileName} — DB=${item.downloadSize}, API=$realSize, fileOnDisk=$fileSize, diff=$diff → updating DB, enqueuing resume")
                     item.downloadSize = realSize
                     dao.updateDownloadItem(item)
                     fixed++
@@ -213,12 +213,12 @@ object DownloadHelper {
             } else if (fileExists && fileSize < item.downloadSize) {
                 // DB matches API, but file on disk is smaller — file is truncated
                 val missing = item.downloadSize - fileSize
-                android.util.Log.i("DownloadHelper", "verifyDownload: TRUNCATED ${item.fileName} — DB=${item.downloadSize}, fileOnDisk=$fileSize, missing=$missing → enqueuing resume")
+                android.util.Log.w("DownloadHelper", "verifyDownload: TRUNCATED ${item.fileName} — DB=${item.downloadSize}, fileOnDisk=$fileSize, missing=$missing → enqueuing resume")
                 dao.updateDownloadItem(item)
                 fixed++
                 toEnqueue.add(item.id)
             } else {
-                android.util.Log.i(TAG(), "verifyDownload: ${item.fileName} — OK, sizes match")
+                android.util.Log.w(TAG(), "verifyDownload: ${item.fileName} — OK, sizes match")
             }
         }
 

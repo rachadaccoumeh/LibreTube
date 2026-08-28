@@ -238,8 +238,12 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                 requireContext(), downloadTab, downloadPlaylistId,
                 currentSortOrder = {
                     DownloadSortingOrder.entries[selectedSortType]
+                },
+                toggleDownload = { !toggleDownload(it) },
+                isItemDownloading = { id ->
+                    binder?.getService()?.isDownloading(id) == true
                 }
-            ) { !toggleDownload(it) }
+            )
         binding.downloadsRecView.adapter = adapter
 
         val sortOptions = DownloadSortingOrder.entries.map { getString(it.stringId) }
@@ -378,6 +382,12 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         if (ids.isEmpty()) return false
 
         if (!serviceConnection.isBound) {
+            // The service might still be running even though we're not bound yet.
+            // If any of the items is actively downloading, the user intent is to PAUSE, not resume.
+            if (ids.any { DownloadService.isDownloadActive(it) }) {
+                ids.forEach { DownloadService.dequeueItem(it) }
+                return false
+            }
             serviceConnection.pendingResumeIds = ids.toIntArray()
             DownloadHelper.startDownloadService(requireContext())
             bindDownloadService(ids.toIntArray())
@@ -563,7 +573,7 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                     if (progressBar.isIndeterminate) return
                     progressBar.incrementProgressBy(status.progress.toInt())
                     val progressInfo = progressBar.progress.formatAsFileSize() +
-                            " /\\n" + progressBar.max.formatAsFileSize()
+                            " / " + progressBar.max.formatAsFileSize()
                     fileSize.text = progressInfo
                 }
 

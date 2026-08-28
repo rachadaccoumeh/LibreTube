@@ -32,8 +32,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class VideoCardsAdapter(private val columnWidthDp: Float? = null) :
-    ListAdapter<StreamItem, VideoCardsViewHolder>(DiffUtilItemCallback()) {
+class VideoCardsAdapter(
+    private val columnWidthDp: Float? = null,
+    private val onMarkCaughtUp: (() -> Unit)? = null
+) :
+    ListAdapter<StreamItem, VideoCardsViewHolder>(
+        DiffUtilItemCallback(
+            areItemsTheSame = { a, b -> a.url == b.url },
+            areContentsTheSame = { a, b -> a == b }
+        )
+    ) {
 
     override fun getItemViewType(position: Int): Int {
         return if (currentList[position].type == CAUGHT_UP_STREAM_TYPE) CAUGHT_UP_TYPE else NORMAL_TYPE
@@ -72,6 +80,12 @@ class VideoCardsAdapter(private val columnWidthDp: Float? = null) :
         val activity = (context as BaseActivity)
         val fragmentManager = activity.supportFragmentManager
 
+        holder.allCaughtUpBinding?.apply {
+            markCaughtUpBtn.setOnClickListener {
+                onMarkCaughtUp?.invoke()
+            }
+        }
+
         holder.trendingRowBinding?.apply {
             // set a fixed width for better visuals
             if (columnWidthDp != null) {
@@ -79,6 +93,10 @@ class VideoCardsAdapter(private val columnWidthDp: Float? = null) :
                     width = columnWidthDp.dpToPx()
                 }
             }
+
+            // show or hide the NEW badge based on the isNew flag
+            newBadgeCard.isVisible = video.isNew
+
             watchProgress.setWatchProgressLength(videoId, video.duration ?: 0L)
 
             textViewTitle.text = video.title

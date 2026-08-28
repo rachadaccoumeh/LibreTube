@@ -35,6 +35,7 @@ import com.github.libretube.util.PlayingQueue
 import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_subscriptions) {
@@ -51,7 +52,14 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
     private var isAppBarFullyExpanded = true
 
-    private var feedAdapter = VideoCardsAdapter()
+    private var feedAdapter = VideoCardsAdapter(
+        onMarkCaughtUp = {
+            PreferenceHelper.updateLastFeedWatchedTime(System.currentTimeMillis(), seenByUser = true)
+            lifecycleScope.launch {
+                showFeed(restoreScrollState = true)
+            }
+        }
+    )
     private var selectedSortOrder = PreferenceHelper.getInt(PreferenceKeys.FEED_SORT_ORDER, 0)
         set(value) {
             PreferenceHelper.putInt(PreferenceKeys.FEED_SORT_ORDER, value)
@@ -114,9 +122,8 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
                 alreadyShowedFeedOnce = true
             }
 
-           feed?.firstOrNull { !it.isUpcoming }?.uploaded?.let {
-                PreferenceHelper.updateLastFeedWatchedTime(it, true)
-            }
+            // NOTE: the feed is no longer automatically marked as seen when opened.
+            // The user must explicitly press "mark as seen" (on the caught up divider).
 
             // ungrouped chip is hidden if the user doesn't use channel groups
             binding.chipUngrouped.isVisible = !viewModel.groups.value.isNullOrEmpty()
@@ -325,10 +332,22 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         val binding = _binding ?: return
         val videoFeed = viewModel.videoFeed.value ?: return
 
+        val lastUserSeenTime = PreferenceHelper.getLastCheckedFeedTime(seenByUser = true)
+        // map of videoId -> time when the video was first fetched into the feed
+        val insertTimes = withContext(Dispatchers.IO) {
+            DatabaseHolder.Database.feedDao().getAll()
+        }.associate { it.videoId to it.insertedAt }
+
         val feed = videoFeed
             .filterByGroup(selectedFilterGroup)
             .let {
                 DatabaseHelper.filterByStreamTypeAndWatchPosition(it, hideWatched, showUpcoming)
+            }
+            .map { streamItem ->
+                // mark videos that were fetched after the user last caught up as NEW,
+                // even if they're sorted in between of older (already seen) videos
+                val insertedAt = insertTimes[streamItem.url?.toID()] ?: 0L
+                streamItem.copy(isNew = insertedAt > lastUserSeenTime && !streamItem.isUpcoming)
             }
 
         val sortedFeed = feed

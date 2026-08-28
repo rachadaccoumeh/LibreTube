@@ -1,7 +1,9 @@
 package com.github.libretube.api
 
+import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.api.obj.Subscription
 import com.github.libretube.constants.PreferenceKeys
+import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.SubscriptionsFeedItem
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.repo.AccountSubscriptionsRepository
@@ -57,8 +59,19 @@ object SubscriptionHelper {
         subscriptionsRepository.getSubscriptions().sortedBy { it.name.lowercase() }
 
     suspend fun getSubscriptionChannelIds() = subscriptionsRepository.getSubscriptionChannelIds()
-    suspend fun getFeed(forceRefresh: Boolean, onProgressUpdate: (FeedProgress) -> Unit = {}) =
-        feedRepository.getFeed(forceRefresh, onProgressUpdate)
+    suspend fun getFeed(forceRefresh: Boolean, onProgressUpdate: (FeedProgress) -> Unit = {}): List<StreamItem> {
+        val feed = feedRepository.getFeed(forceRefresh, onProgressUpdate)
+
+        // for non-local feeds, track when each video was first fetched (insertedAt),
+        // so the UI can show a NEW badge for videos fetched after the user last caught up.
+        // LocalFeedRepository already maintains this itself.
+        if (!localFeedExtraction) {
+            val trackedItems = feed.filter { it.url != null }.map { it.toFeedItem() }
+            DatabaseHolder.Database.feedDao().insertAllIgnoreExisting(trackedItems)
+        }
+
+        return feed
+    }
 
     suspend fun submitFeedItemChange(feedItem: SubscriptionsFeedItem) =
         feedRepository.submitFeedItemChange(feedItem)

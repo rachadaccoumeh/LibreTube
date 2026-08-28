@@ -4,6 +4,7 @@ import android.util.Log
 import com.github.libretube.api.obj.Subtitle
 import com.github.libretube.helpers.ProxyHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -40,8 +41,12 @@ object TranscriptHelper {
     var lastError: String? = null
         private set
 
+    var fetchedLanguage: String? = null
+        private set
+
     suspend fun fetchTranscript(subtitles: List<Subtitle>): List<TranscriptSegment>? = withContext(Dispatchers.IO) {
         lastError = null
+        fetchedLanguage = null
         Log.i(TAG, "fetchTranscript: subtitles count=${subtitles.size}")
         if (subtitles.isEmpty()) {
             lastError = "No subtitles in streams"
@@ -73,8 +78,20 @@ object TranscriptHelper {
                 Log.i(TAG, "fetchTranscript: trying '${subtitle.code}' url=$url")
 
                 val request = Request.Builder().url(url).build()
-                val response = httpClient.newCall(request).execute()
+                var response = httpClient.newCall(request).execute()
                 Log.i(TAG, "fetchTranscript: HTTP ${response.code} for '${subtitle.code}'")
+
+                // Retry on HTTP 429 (rate limited) with backoff
+                var retryCount = 0
+                while (response.code == 429 && retryCount < 3) {
+                    response.close()
+                    val backoffMs = (2000L * (retryCount + 1))
+                    Log.i(TAG, "fetchTranscript: HTTP 429 for '${subtitle.code}', retrying in ${backoffMs}ms (attempt ${retryCount + 1}/3)")
+                    delay(backoffMs)
+                    response = httpClient.newCall(request).execute()
+                    Log.i(TAG, "fetchTranscript: HTTP ${response.code} for '${subtitle.code}' (retry ${retryCount + 1})")
+                    retryCount++
+                }
 
                 if (!response.isSuccessful) {
                     lastError = "HTTP ${response.code} for '${subtitle.code}'"
@@ -95,6 +112,7 @@ object TranscriptHelper {
                     continue
                 }
 
+                fetchedLanguage = subtitle.code
                 return@withContext segments
             } catch (e: Exception) {
                 lastError = "${e.javaClass.simpleName}: ${e.message}"

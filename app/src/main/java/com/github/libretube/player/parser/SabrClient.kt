@@ -296,9 +296,9 @@ class SabrClient private constructor(
             playbackRequest.playerPosition < (initializedFormats[itag]?.duration ?: Long.MAX_VALUE)
         ) { "Requested segment for finished format" }
 
-        Log.d(
+        Log.w(
             TAG,
-            "getNextSegment: loading media data for $itag at position ${playbackRequest.playerPosition}"
+            "getNextSegment: loading media data for $itag at position ${playbackRequest.playerPosition}, segment=${playbackRequest.segment}"
         )
 
         // synchronize buffered segments with the actually buffered segments from the player
@@ -354,7 +354,7 @@ class SabrClient private constructor(
         videoFormat: Representation?,
     ): ByteArray {
         backoffTime?.let { backoff ->
-            Log.i(TAG, "fetchStreamData: Waiting for ${backoff}ms before making a request")
+            Log.w(TAG, "fetchStreamData: Waiting for ${backoff}ms before making a request")
             delay(backoff.toLong())
             backoffTime = null
         }
@@ -424,7 +424,7 @@ class SabrClient private constructor(
         lastRequestMs = Instant.now().toEpochMilli()
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            Log.e(TAG, "fetchStreamData: Failed to fetch data (${response.code})")
+            Log.w(TAG, "fetchStreamData: Failed to fetch data (${response.code})")
             throw Exception("HTTP request failed: ${response.code}")
         }
 
@@ -448,7 +448,7 @@ class SabrClient private constructor(
                 }
 
                 if (videoId != this.videoId) {
-                    Log.e(TAG, "processPart: Received unexpected media header for $videoId")
+                    Log.w(TAG, "processPart: Received unexpected media header for $videoId")
                     throw Exception("Header mismatch")
                 }
 
@@ -459,7 +459,7 @@ class SabrClient private constructor(
                     return
                 }
 
-                Log.v(TAG, "processPart: Enqueuing partial segment $headerId")
+                Log.w(TAG, "processPart: Enqueuing partial segment $headerId")
                 partialSegments[headerId] = Segment(
                     header = header,
                     sequenceNumber = sequenceNumber,
@@ -483,7 +483,7 @@ class SabrClient private constructor(
                 val parser = UmpParser(part.data)
                 val headerId = parser.readVarint()?.toInt()!!
                 val segment = partialSegments.remove(headerId) ?: return
-                Log.v(TAG, "processPart: Dequeuing partial segment $headerId")
+                Log.w(TAG, "processPart: Dequeuing partial segment $headerId")
 
                 val segmentLength = segment.length()
                 if (segmentLength != segment.header.contentLength.toInt()) {
@@ -556,21 +556,21 @@ class SabrClient private constructor(
 
                 policy.startPolicyList.forEach { startPolicy ->
                     if (!activeSabrContexts.contains(startPolicy)) {
-                        Log.v(TAG, "processPart: Server requested to enable SABR Context Update ($startPolicy)")
+                        Log.w(TAG, "processPart: Server requested to enable SABR Context Update ($startPolicy)")
                         activeSabrContexts.add(startPolicy)
                     }
                 }
 
                 policy.stopPolicyList.forEach { stopPolicy ->
                     if (activeSabrContexts.contains(stopPolicy)) {
-                        Log.v(TAG, "processPart: Server requested to disable SABR Context Update ($stopPolicy)")
+                        Log.w(TAG, "processPart: Server requested to disable SABR Context Update ($stopPolicy)")
                         activeSabrContexts.remove(stopPolicy)
                     }
                 }
 
                 policy.discardPolicyList.forEach { discardPolicy ->
                     if (activeSabrContexts.contains(discardPolicy)) {
-                        Log.v(TAG, "processPart: Server requested to discard SABR Context Update ($discardPolicy)")
+                        Log.w(TAG, "processPart: Server requested to discard SABR Context Update ($discardPolicy)")
                         sabrContexts.remove(discardPolicy)
                     }
                 }
@@ -587,22 +587,22 @@ class SabrClient private constructor(
                 val status = StreamProtectionStatus.parseFrom(part.data)
                 // https://github.com/coletdjnz/yt-dlp-dev/blob/5c0c2963396009a92101bc6e038b61844368409d/yt_dlp/extractor/youtube/_streaming/sabr/part.py
                 when (status.status) {
-                    1 -> Log.i(TAG, "processPart: [StreamProtectionStatus] OK")
+                    1 -> Log.w(TAG, "processPart: [StreamProtectionStatus] OK")
                     2 -> {
-                        Log.i(TAG, "processPart: [StreamProtectionStatus] Attestation pending.")
+                        Log.w(TAG, "processPart: [StreamProtectionStatus] Attestation pending.")
                         // try to regenerate the poToken for the next request
                         poToken = generatePoToken()
                     }
                     // we assume that we got an attestation pending warning before and already tried to regenerate the token,
                     // but it's not accepted, so we bail
                     3 -> throw Exception("Attestation required")
-                    else -> Log.e(TAG, "processPart: Unknown StreamProtectionStatus (${status.status})")
+                    else -> Log.w(TAG, "processPart: Unknown StreamProtectionStatus (${status.status})")
                 }
             }
 
             UMPPartId.SABR_ERROR -> {
                 val error = SabrError.parseFrom(part.data)
-                Log.e(TAG, "processPart: Received SABR error: ${error.type} (${error.code})")
+                Log.w(TAG, "processPart: Received SABR error: ${error.type} (${error.code})")
                 fatalError = error
                 throw Exception("SABR error: ${error.type}")
             }

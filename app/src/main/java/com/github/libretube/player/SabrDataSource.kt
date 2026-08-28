@@ -31,11 +31,18 @@ class SabrDataSource(
         transferInitializing(dataSpec)
         transferStarted(dataSpec)
         val segment = try {
-            sabrClient.getNextSegment(playbackRequest!!)!!
+            sabrClient.getNextSegment(playbackRequest!!)
         } catch (e: Exception) {
-            Log.e(
+            Log.w(
                 SabrClient::class.java.name,
                 "open: failed to get segment ${playbackRequest!!.segment} for ${playbackRequest.format.itag}: $e"
+            )
+            throw IOException()
+        }
+        if (segment == null) {
+            Log.w(
+                SabrClient::class.java.name,
+                "open: getNextSegment returned null for segment ${playbackRequest.segment} for ${playbackRequest.format.itag}"
             )
             throw IOException()
         }

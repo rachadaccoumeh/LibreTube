@@ -1,6 +1,7 @@
 package com.github.libretube.repo
 
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import com.github.libretube.api.obj.PipedStream
@@ -13,6 +14,8 @@ import com.github.libretube.player.parser.PlaybackRequest
 import com.github.libretube.player.parser.SabrClient
 import com.github.libretube.player.parser.Segment
 import okio.BufferedSink
+
+private const val TAG = "SabrDownload"
 
 data class SabrDownloaderHandle(
     val sabrClient: SabrClient,
@@ -43,8 +46,10 @@ class SabrDownloadProvider(
     override suspend fun downloadNextChunk(
         item: DownloadItem,
         sink: BufferedSink,
+        isActive: () -> Boolean,
     ): DownloadProgressResult {
         var currentPositionMillis = item.currentDownloadPositionMillis ?: 0L
+        Log.w(TAG, "downloadNextChunk: item=${item.fileName}, position=${currentPositionMillis}ms, initSegment=${downloadHandle.initSegment != null}, nextSegment=${downloadHandle.nextSegmentNumber}")
 
         if (downloadHandle.initSegment == null) {
             val initRequest = PlaybackRequest.initRequest(
@@ -53,13 +58,18 @@ class SabrDownloadProvider(
                 playbackSpeed = 1f
             )
             val initSegment = downloadHandle.sabrClient
-                .getNextSegment(initRequest) ?: return DownloadProgressResult.Failed
+                .getNextSegment(initRequest)
+            if (initSegment == null) {
+                Log.w(TAG, "downloadNextChunk: init segment was null for ${item.fileName}")
+                return DownloadProgressResult.Failed
+            }
             for (chunk in initSegment.data) {
                 sink.write(chunk)
             }
             downloadHandle.initSegment = initSegment
 
             downloadHandle.nextSegmentNumber = initSegment.sequenceNumber + 1
+            Log.w(TAG, "downloadNextChunk: init segment done, seq=${initSegment.sequenceNumber}, nextSegment=${downloadHandle.nextSegmentNumber}")
         }
 
         val request = PlaybackRequest(
@@ -71,7 +81,10 @@ class SabrDownloadProvider(
             bufferedSegments = emptyList()
         )
         val segment = downloadHandle.sabrClient.getNextSegment(request)
-            ?: return DownloadProgressResult.Failed
+        if (segment == null) {
+            Log.w(TAG, "downloadNextChunk: segment was null for ${item.fileName}, segment=${downloadHandle.nextSegmentNumber}")
+            return DownloadProgressResult.Failed
+        }
 
         for (chunk in segment.data) {
             sink.write(chunk)
@@ -88,10 +101,12 @@ class SabrDownloadProvider(
         val endSegmentNumber = downloadHandle.sabrClient.getEndSegmentNumber(
             downloadHandle.streamRepresentation.formatId()
         )
+        Log.w(TAG, "downloadNextChunk: segment done, seq=${segment.sequenceNumber}, nextSegment=${downloadHandle.nextSegmentNumber}, endSegment=$endSegmentNumber, position=${currentPositionMillis}ms")
         return if (endSegmentNumber != null && downloadHandle.nextSegmentNumber < endSegmentNumber) {
             val downloadedBytesLength = segment.data.sumOf { it.size }
             DownloadProgressResult.Progressed(downloadedBytesLength.toLong())
         } else {
+            Log.w(TAG, "downloadNextChunk: DOWNLOAD COMPLETE for ${item.fileName}")
             DownloadProgressResult.DownloadComplete
         }
     }

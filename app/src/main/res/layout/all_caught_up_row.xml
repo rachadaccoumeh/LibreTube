@@ -32,4 +32,13 @@
         android:textColor="?attr/colorControlNormal"
         android:textSize="13sp" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/mark_caught_up_btn"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="16dp"
+        android:text="@string/mark_as_caught_up" />
+
 </LinearLayout>

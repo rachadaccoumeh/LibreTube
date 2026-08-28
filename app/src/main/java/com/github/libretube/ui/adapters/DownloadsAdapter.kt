@@ -43,7 +43,8 @@ class DownloadsAdapter(
     private val downloadTab: DownloadTab,
     private val playlistId: String?,
     private val currentSortOrder: () -> DownloadSortingOrder,
-    private val toggleDownload: (DownloadWithItems) -> Boolean
+    private val toggleDownload: (DownloadWithItems) -> Boolean,
+    private val isItemDownloading: (Int) -> Boolean = { false }
 ) : ListAdapter<DownloadWithItems, DownloadsViewHolder>(DiffUtilItemCallback()) {
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DownloadsViewHolder {
         val binding = VideoRowBinding.inflate(
@@ -85,7 +86,10 @@ class DownloadsAdapter(
             }
             if (downloadSize <= 0 || downloadSize > currentSize) {
                 downloadOverlay.isVisible = true
-                resumePauseBtn.setImageResource(R.drawable.ic_download)
+                val anyItemDownloading = items.any { isItemDownloading(it.id) }
+                resumePauseBtn.setImageResource(
+                    if (anyItemDownloading) R.drawable.ic_pause else R.drawable.ic_download
+                )
                 fileSize.text = "${currentSize.formatAsFileSize()} / $totalSizeInfo"
             } else if (currentSize > downloadSize) {
                 // File is larger than DB downloadSize — DB metadata is stale/wrong.

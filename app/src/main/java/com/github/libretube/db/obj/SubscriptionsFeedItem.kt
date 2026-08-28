@@ -1,5 +1,6 @@
 package com.github.libretube.db.obj
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.github.libretube.api.obj.StreamItem
@@ -19,7 +20,9 @@ data class SubscriptionsFeedItem(
     val uploaderVerified: Boolean,
     val uploaded: Long = 0,
     val shortDescription: String? = null,
-    val isShort: Boolean = false
+    val isShort: Boolean = false,
+    @ColumnInfo(defaultValue = "0")
+    val insertedAt: Long = 0
 ) {
     fun toStreamItem() = StreamItem(
         url = videoId,

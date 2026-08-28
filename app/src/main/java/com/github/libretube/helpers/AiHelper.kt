@@ -99,11 +99,21 @@ object AiHelper {
         }
     }
 
-    suspend fun summarize(transcript: String, videoTitle: String, description: String = "", uploader: String = ""): Result<String> {
+    suspend fun summarize(transcript: String, videoTitle: String, description: String = "", uploader: String = "", transcriptLanguage: String? = null): Result<String> {
         val config = getConfig() ?: return Result.failure(IllegalStateException("AI not configured"))
+        val langInstruction = if (transcriptLanguage != null) {
+            "IMPORTANT: Respond in the same language as the transcript ($transcriptLanguage). " +
+                "If the user asks you to respond in a different language, follow their request instead. "
+        } else {
+            "IMPORTANT: Respond in the same language as the transcript. " +
+                "If the user asks you to respond in a different language, follow their request instead. "
+        }
         val systemMsg = ChatMessage(
             "system",
             "You are a helpful assistant that summarizes videos based on their transcript and description. " +
+                langInstruction +
+                "Write in simple, clear language that anyone can understand — even someone not familiar with the topic. " +
+                "If the video uses technical or specialized terms, briefly explain them in plain words when first mentioned. " +
                 "Provide a concise, informative summary of the video content. " +
                 "IMPORTANT: Use the video description as additional context — it contains sources, references, links, and background info that may not be spoken in the transcript. " +
                 "When mentioning sources or references, incorporate information from both the transcript and the description. " +
@@ -127,16 +137,27 @@ object AiHelper {
         videoTitle: String,
         conversationHistory: List<ChatMessage> = emptyList(),
         description: String = "",
-        uploader: String = ""
+        uploader: String = "",
+        transcriptLanguage: String? = null
     ): Result<String> {
         val config = getConfig() ?: return Result.failure(IllegalStateException("AI not configured"))
         val contextPart = buildString {
             if (uploader.isNotBlank()) append("\nChannel: $uploader")
             if (description.isNotBlank()) append("\n\nVideo description:\n$description")
         }
+        val langInstruction = if (transcriptLanguage != null) {
+            "IMPORTANT: Respond in the same language as the transcript ($transcriptLanguage). " +
+                "If the user asks you to respond in a different language, follow their request instead. "
+        } else {
+            "IMPORTANT: Respond in the same language as the transcript. " +
+                "If the user asks you to respond in a different language, follow their request instead. "
+        }
         val systemMsg = ChatMessage(
             "system",
             "You are a helpful assistant that answers questions about a video based on its transcript and description. " +
+                langInstruction +
+                "Write in simple, clear language that anyone can understand — even someone not familiar with the topic. " +
+                "If the video or your answer uses technical or specialized terms, briefly explain them in plain words when first mentioned. " +
                 "The video is titled \"$videoTitle\". " +
                 "IMPORTANT: Use the video description as additional context — it contains sources, references, links, and background info that may not be spoken in the transcript. " +
                 "When answering questions about sources, references, or background, check both the transcript and the description. " +

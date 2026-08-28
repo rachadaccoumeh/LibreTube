@@ -54,6 +54,7 @@ class AiChatBottomSheet(
     private var transcriptText: String?
         get() = commonPlayerViewModel.aiTranscriptText
         set(value) { commonPlayerViewModel.aiTranscriptText = value }
+    private var transcriptLanguage: String? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         _binding = BottomSheetAiChatBinding.bind(view)
@@ -142,6 +143,7 @@ class AiChatBottomSheet(
             }
 
             transcriptText = TranscriptHelper.truncateForContext(segments)
+            transcriptLanguage = TranscriptHelper.fetchedLanguage
             commonPlayerViewModel.aiTranscriptLoaded = true
             binding.aiSummarizeChip.isEnabled = true
             binding.aiSummarizeChip.text = getString(R.string.ai_summarize)
@@ -156,7 +158,7 @@ class AiChatBottomSheet(
         isLoading = true
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val result = AiHelper.summarize(transcript, title, streams.description, streams.uploader)
+            val result = AiHelper.summarize(transcript, title, streams.description, streams.uploader, transcriptLanguage)
             isLoading = false
 
             // Remove "thinking..." message
@@ -199,7 +201,7 @@ class AiChatBottomSheet(
         val title = streams.title
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val result = AiHelper.ask(text, transcript, title, history, streams.description, streams.uploader)
+            val result = AiHelper.ask(text, transcript, title, history, streams.description, streams.uploader, transcriptLanguage)
             isLoading = false
 
             removeLastMessage()

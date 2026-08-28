@@ -15,6 +15,12 @@ interface SubscriptionsFeedDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(feedItems: List<SubscriptionsFeedItem>)
 
+    /**
+     * Insert only items that don't exist yet, keeping existing rows (and their insertedAt) untouched.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnoreExisting(feedItems: List<SubscriptionsFeedItem>)
+
     @Update
     suspend fun update(feedItem: SubscriptionsFeedItem)
 

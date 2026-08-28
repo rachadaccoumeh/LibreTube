@@ -26,7 +26,8 @@ data class StreamItem(
     val uploaderVerified: Boolean? = null,
     val uploaded: Long = 0,
     val shortDescription: String? = null,
-    val isShort: Boolean = false
+    val isShort: Boolean = false,
+    var isNew: Boolean = false
 ) : Parcelable {
     val isLive get() = !isShort && ((duration == null) || (duration <= 0L))
     val isUpcoming get() = uploaded > System.currentTimeMillis()
@@ -57,7 +58,8 @@ data class StreamItem(
         uploaderVerified = uploaderVerified ?: false,
         shortDescription = shortDescription,
         views = views,
-        isShort = isShort
+        isShort = isShort,
+        insertedAt = System.currentTimeMillis()
     )
     
     fun toWatchHistoryItem(videoId: String) = WatchHistoryItem(
