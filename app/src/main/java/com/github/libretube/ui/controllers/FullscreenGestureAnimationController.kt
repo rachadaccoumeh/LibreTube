@@ -103,11 +103,12 @@ class FullscreenGestureAnimationController(
     fun onSwipeDownScrollEnd(enterFullscreen: Boolean) {
         if (!isScrollSwipeInProgress) return
 
+        // no bounce when fullscreen opens: the player grows into fullscreen at the same time
         videoFrameView.animate()
             .scaleX(1f)
             .scaleY(1f)
-            .setInterpolator(OvershootInterpolator(0.8f))
-            .setDuration(300)
+            .setInterpolator(if (enterFullscreen) DecelerateInterpolator() else OvershootInterpolator(0.8f))
+            .setDuration(250)
             .withEndAction {
                 videoFrameView.pivotY = videoFrameView.height / 2f
                 videoFrameView.pivotX = videoFrameView.width / 2f
@@ -136,12 +137,13 @@ class FullscreenGestureAnimationController(
         // fullscreen (scale was > 1, settling back feels like a gentle bounce) and
         // DecelerateInterpolator when exiting (scale was < 1, smooth settle).
         if (shouldHandleSwipe) {
-            val interpolator = if (wasEntering) OvershootInterpolator(0.8f) else DecelerateInterpolator()
+            // bounce back only when the swipe was too short; a completed swipe changes the layout instead
+            val interpolator = if (wasEntering && !completed) OvershootInterpolator(0.8f) else DecelerateInterpolator()
             videoFrameView.animate()
                 .scaleX(1f)
                 .scaleY(1f)
                 .setInterpolator(interpolator)
-                .setDuration(300)
+                .setDuration(250)
                 .withEndAction {
                     videoFrameView.pivotY = videoFrameView.height / 2f
                     videoFrameView.pivotX = videoFrameView.width / 2f

@@ -2,7 +2,6 @@ package com.github.libretube.ui.fragments
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.Dialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,14 +20,17 @@ import android.view.KeyEvent
 import android.view.PixelCopy
 import android.view.SurfaceView
 import android.view.View
-import android.view.ViewGroup
-import android.view.ViewGroup.LayoutParams
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.trackPipAnimationHintView
 import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.constraintlayout.motion.widget.TransitionAdapter
+import androidx.constraintlayout.widget.ConstraintSet
+import android.os.Build
+import android.view.WindowManager
+import androidx.core.view.WindowInsetsCompat
+import com.github.libretube.ui.extensions.toggleSystemBars
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.graphics.drawable.toDrawable
@@ -86,7 +88,6 @@ import com.github.libretube.helpers.PlayerActionsHelper
 import com.github.libretube.helpers.PlayerStateHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ThemeHelper
-import com.github.libretube.helpers.WindowHelper
 import com.github.libretube.obj.ShareData
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.services.AbstractPlayerService
@@ -127,6 +128,8 @@ import kotlinx.coroutines.withContext
 import kotlin.io.path.exists
 import kotlin.math.absoluteValue
 
+
+private const val FULLSCREEN_ANIMATION_DURATION = 250
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback {
@@ -200,25 +203,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         get() = WindowCompat
             .getInsetsController(requireActivity().window, requireActivity().window.decorView)
 
-    private val fullscreenDialog by lazy {
-        object : Dialog(requireContext(), android.R.style.Theme_Black_NoTitleBar_Fullscreen) {
-            @Deprecated("Deprecated in Java", ReplaceWith("onbackpressedispatcher and callback"))
-            override fun onBackPressed() {
-                // Safety net: ignore back press right after entering fullscreen
-                val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
-                if (timeSinceEnter < 500) return
-                unsetFullscreen()
-            }
+    /** Constraints of the expanded (non-fullscreen) player, saved before fullscreen changes them. */
+    private var normalStartSet: ConstraintSet? = null
+    private var savedCutoutMode = 0
 
-            override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-                if (_binding?.player?.onKeyUp(keyCode, event) == true) {
-                    return true
-                }
-
-                return super.onKeyUp(keyCode, event)
-            }
-        }
-    }
+    /** True while the fullscreen layout change animates, so the minimize listeners ignore it. */
+    private var isFullscreenAnimating = false
 
     /**
      * Receiver for all actions in the PiP mode
@@ -660,7 +650,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 endId: Int,
                 progress: Float
             ) {
-                if (_binding == null) return
+                if (_binding == null || isFullscreenAnimating) return
 
                 baseActivity.setPlayerContainerProgress(progress.absoluteValue)
                 disableController()
@@ -671,6 +661,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             override fun onTransitionCompleted(motionLayout: MotionLayout?, currentId: Int) {
                 if (_binding == null) return
+                if (isFullscreenAnimating) {
+                    // only the fullscreen layout changed, the player was not minimized or expanded
+                    isFullscreenAnimating = false
+                    binding.player.requestLayout()
+                    return
+                }
 
                 if (currentId == transitionStartId) {
                     commonPlayerViewModel.isMiniPlayerVisible.value = false
@@ -811,15 +807,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             isEnteringPiPMode = true
         }
 
-        binding.relatedRecView.layoutManager = LinearLayoutManager(
-            context,
-            if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                LinearLayoutManager.HORIZONTAL
-            } else {
-                LinearLayoutManager.VERTICAL
-            },
-            false
-        )
+        // vertical full width cards below the video, like YouTube
+        binding.relatedRecView.layoutManager = LinearLayoutManager(context)
 
         binding.relPlayerSave.setOnClickListener {
             if (!::streams.isInitialized) return@setOnClickListener
@@ -1040,24 +1029,51 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
     }
 
-    private fun openOrCloseFullscreenDialog(open: Boolean) {
-        val playerView = binding.player
-        (playerView.parent as ViewGroup).removeView(playerView)
+    /**
+     * Expands the player to fill the screen (or shrinks it back) in place, like YouTube.
+     *
+     * The player view is not moved to another window: moving a SurfaceView to another window
+     * destroys its surface, which caused a black flash and a stutter on every fullscreen change.
+     */
+    private fun openOrCloseFullscreenDialog(open: Boolean, animate: Boolean = true) {
+        val motionLayout = binding.playerMotionLayout
+        val normalSet = normalStartSet ?: ConstraintSet().apply {
+            clone(motionLayout.getConstraintSet(R.id.start))
+        }.also { normalStartSet = it }
 
-        if (open) {
-            fullscreenDialog.addContentView(
-                binding.player,
-                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-            )
-            fullscreenDialog.show()
-            playerView.currentWindow = fullscreenDialog.window
-        } else {
-            binding.playerMotionLayout.addView(playerView)
-            playerView.currentWindow = null
-            fullscreenDialog.dismiss()
+        val targetSet = ConstraintSet().apply {
+            clone(normalSet)
+            if (open) {
+                setDimensionRatio(R.id.main_container, null)
+                constrainHeight(R.id.main_container, ConstraintSet.MATCH_CONSTRAINT)
+                connect(R.id.main_container, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+            }
         }
 
-        WindowHelper.toggleFullscreen(fullscreenDialog.window!!, open)
+        // swiping down must not minimize the player while it is fullscreen
+        motionLayout.getTransition(R.id.yt_transition)?.isEnabled = !open
+
+        if (animate) {
+            isFullscreenAnimating = true
+            motionLayout.updateStateAnimate(R.id.start, targetSet, FULLSCREEN_ANIMATION_DURATION)
+            // safety net in case the motion layout doesn't report the end of the animation
+            handler.postDelayed({ isFullscreenAnimating = false }, FULLSCREEN_ANIMATION_DURATION + 200L)
+        } else {
+            motionLayout.updateState(R.id.start, targetSet)
+        }
+
+        val window = requireActivity().window
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (open) savedCutoutMode = window.attributes.layoutInDisplayCutoutMode
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = if (open) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                } else {
+                    savedCutoutMode
+                }
+            }
+        }
+        window.toggleSystemBars(WindowInsetsCompat.Type.systemBars(), showBars = !open)
     }
 
     override fun onPause() {
@@ -1148,8 +1164,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 .setPictureInPictureParams(requireActivity(), pipParams)
         }
 
+        // restore the system bars in case the player was closed while in fullscreen
         runCatching {
-            if (fullscreenDialog.isShowing) fullscreenDialog.dismiss()
+            if (commonPlayerViewModel.isFullscreen.value == true) {
+                commonPlayerViewModel.isFullscreen.value = false
+                requireActivity().window.toggleSystemBars(WindowInsetsCompat.Type.systemBars(), showBars = true)
+            }
         }
 
         runCatching {
@@ -1433,10 +1453,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             streams.relatedStreams.filter { !it.title.isNullOrBlank() }
         }
 
-        val relatedLayoutManager = binding.relatedRecView.layoutManager as LinearLayoutManager
-        binding.relatedRecView.adapter = VideoCardsAdapter(
-            columnWidthDp = if (relatedLayoutManager.orientation == LinearLayoutManager.HORIZONTAL) 250f else null
-        ).also { adapter ->
+        binding.relatedRecView.adapter = VideoCardsAdapter().also { adapter ->
             adapter.submitList(relatedStreams)
         }
     }
@@ -1560,7 +1577,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             binding.player.updateCurrentSubtitle(null)
             playerBackgroundBinding.sbSkipBtn.isGone = true
 
-            openOrCloseFullscreenDialog(true)
+            openOrCloseFullscreenDialog(true, animate = false)
             pipActivity = activity
         } else {
             binding.player.useController = true
@@ -1576,7 +1593,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             // unset fullscreen if it's not been enabled before the start of PiP
             if (commonPlayerViewModel.isFullscreen.value != true) {
-                openOrCloseFullscreenDialog(false)
+                openOrCloseFullscreenDialog(false, animate = false)
             }
         }
     }
