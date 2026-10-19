@@ -663,8 +663,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 if (_binding == null) return
                 if (isFullscreenAnimating) {
                     // only the fullscreen layout changed, the player was not minimized or expanded
-                    isFullscreenAnimating = false
-                    binding.player.requestLayout()
+                    handler.post { finishFullscreenAnimation() }
                     return
                 }
 
@@ -1057,7 +1056,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             isFullscreenAnimating = true
             motionLayout.updateStateAnimate(R.id.start, targetSet, FULLSCREEN_ANIMATION_DURATION)
             // safety net in case the motion layout doesn't report the end of the animation
-            handler.postDelayed({ isFullscreenAnimating = false }, FULLSCREEN_ANIMATION_DURATION + 200L)
+            handler.postDelayed({ finishFullscreenAnimation() }, FULLSCREEN_ANIMATION_DURATION + 200L)
         } else {
             motionLayout.updateState(R.id.start, targetSet)
         }
@@ -1074,6 +1073,18 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
         window.toggleSystemBars(WindowInsetsCompat.Type.systemBars(), showBars = !open)
+    }
+
+    /**
+     * [MotionLayout.updateStateAnimate] runs a temporary transition that ends at progress 1 and
+     * stays active, which breaks the minimize transition and the swipe gestures afterwards.
+     */
+    private fun finishFullscreenAnimation() {
+        if (!isFullscreenAnimating || _binding == null) return
+        // still flagged as animating, so the transition listener ignores this state reset
+        binding.playerMotionLayout.setTransition(R.id.yt_transition)
+        isFullscreenAnimating = false
+        binding.player.requestLayout()
     }
 
     override fun onPause() {

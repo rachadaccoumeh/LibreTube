@@ -10,6 +10,7 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.ScrollView
+import kotlin.math.abs
 import com.github.libretube.extensions.dpToPx
 import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.constraintlayout.motion.widget.TransitionAdapter
@@ -51,6 +52,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     private val scrollView by lazy { findViewById<ScrollView>(R.id.player_scrollView) }
 
     private var startedMinimized = false
+    private var touchInitialX = 0f
     private var touchInitialY = 0f
     private var isTouchDownInsideHitArea = false
     private var shouldInterceptTouchEvent = false
@@ -156,19 +158,23 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         val cardId = R.id.main_container
         val margin = MINI_PLAYER_MARGIN_DP.dpToPx()
 
-        val cardWidth = miniPlayerWidth?.coerceAtMost(width - 2 * margin)
-        if (cardWidth != null) set.constrainWidth(cardId, cardWidth)
+        val cardWidth = (miniPlayerWidth ?: MINI_PLAYER_DEFAULT_WIDTH_DP.dpToPx())
+            .coerceAtMost(width - 2 * margin)
+        val cardHeight = cardWidth * 9 / 16
+        // explicit size: a dimension ratio collapses to zero height once constraints change
+        set.setDimensionRatio(cardId, null)
+        set.constrainWidth(cardId, cardWidth)
+        set.constrainHeight(cardId, cardHeight)
 
         val x = miniPlayerX
         val y = miniPlayerY
         if (x != null && y != null) {
-            val cardHeight = (cardWidth ?: viewToDetectTouch.width) * 9 / 16
             // the host activity may shift this layout up, so compute the top edge on screen
             val location = IntArray(2).also { getLocationOnScreen(it) }
             val statusBarHeight = ViewCompat.getRootWindowInsets(this)
                 ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
             val minY = (statusBarHeight - location[1] + margin).coerceAtLeast(margin)
-            val maxX = (width - (cardWidth ?: viewToDetectTouch.width) - margin).coerceAtLeast(margin)
+            val maxX = (width - cardWidth - margin).coerceAtLeast(margin)
             val maxY = (height - cardHeight - margin).coerceAtLeast(minY)
 
             set.clear(cardId, ConstraintSet.END)
@@ -207,7 +213,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
-        when (event?.action) {
+        when (event?.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 shouldInterceptTouchEvent = false
                 isTouchDownInsideHitArea = false
@@ -217,11 +223,28 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
 
                 viewToDetectTouch.getHitRect(viewRect)
                 isTouchDownInsideHitArea = viewRect.contains(event.x.toInt(), event.y.toInt())
+                touchInitialX = event.x
                 touchInitialY = event.y
-                startedMinimized = progress == 1F
+                startedMinimized = currentState == R.id.end
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // a pinch on the mini player card resizes it, even if it started on a button
+                if (startedMinimized && isTouchDownInsideHitArea) shouldInterceptTouchEvent = true
             }
 
             MotionEvent.ACTION_MOVE -> {
+                // a drag on the mini player card moves it, even if it started on a button
+                if (startedMinimized && !shouldInterceptTouchEvent && isTouchDownInsideHitArea &&
+                    (abs(event.x - touchInitialX) > scaledTouchSlop || abs(event.y - touchInitialY) > scaledTouchSlop)
+                ) {
+                    shouldInterceptTouchEvent = true
+                    MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_DOWN }.also { downEvent ->
+                        gestureDetector.onTouchEvent(downEvent)
+                        downEvent.recycle()
+                    }
+                }
+
                 if (!startedMinimized && !shouldInterceptTouchEvent && isTouchDownInsideHitArea) {
                     val deltaY = event.y - touchInitialY
 
@@ -268,7 +291,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             }
 
             MotionEvent.ACTION_MOVE -> {
-                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && progress != 1F) {
+                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && currentState != R.id.end) {
                     val deltaY = event.y - scrollTouchStartY
                     // Report live drag progress for animation (even past threshold, even negative)
                     swipeDownOnScrollListener.forEach { it.invoke(deltaY) }
@@ -282,7 +305,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && progress != 1F) {
+                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && currentState != R.id.end) {
                     swipeDownOnScrollEndListener.forEach {
                         it.invoke(portraitFullscreenTriggered)
                     }
@@ -312,6 +335,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     companion object {
         private const val MINI_PLAYER_MARGIN_DP = 12f
         private const val MINI_PLAYER_MIN_WIDTH_DP = 140f
+        private const val MINI_PLAYER_DEFAULT_WIDTH_DP = 200f
 
         // kept for the app's lifetime so the next video's mini player opens at the same place
         private var miniPlayerWidth: Int? = null
