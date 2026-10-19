@@ -23,14 +23,14 @@ class PlayerGestureControlsView(
             val oldMax = max
             val oldProgress = progress
             max = (height * 0.7).toInt()
-            progress = oldProgress.normalize(0, oldMax, 0, max)
+            progress = if (oldMax > 0) oldProgress.normalize(0, oldMax, 0, max) else 0
         }
 
         binding.volumeProgressBar.apply {
             val oldMax = max
             val oldProgress = progress
             max = (height * 0.7).toInt()
-            progress = oldProgress.normalize(0, oldMax, 0, max)
+            progress = if (oldMax > 0) oldProgress.normalize(0, oldMax, 0, max) else 0
         }
     }
 }
