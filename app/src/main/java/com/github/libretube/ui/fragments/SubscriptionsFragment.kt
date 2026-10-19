@@ -59,8 +59,19 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
             lifecycleScope.launch {
                 showFeed(restoreScrollState = true)
             }
-        }
+        },
+        onJumpToOldestNew = { jumpToOldestNewVideo() }
     )
+
+    /**
+     * Scrolls to the oldest NEW video, so the new videos can be watched from the bottom up.
+     */
+    private fun jumpToOldestNewVideo() {
+        val index = feedAdapter.currentList.indexOfLast { it.isNew }.takeIf { it >= 0 } ?: return
+        (_binding?.subFeed?.layoutManager as? GridLayoutManager)?.scrollToPositionWithOffset(index, 0)
+        // collapse the app bar, so the video is not hidden behind it
+        _binding?.subscriptionsAppBar?.setExpanded(false, true)
+    }
     private var selectedSortOrder = PreferenceHelper.getInt(PreferenceKeys.FEED_SORT_ORDER, 0)
         set(value) {
             PreferenceHelper.putInt(PreferenceKeys.FEED_SORT_ORDER, value)
@@ -372,17 +383,25 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
             .sortedBySelectedOrder()
             .toMutableList()
 
-        // add an "all caught up item"
-        if (selectedSortOrder == 0) {
-            val lastCheckedFeedTime = PreferenceHelper.getLastCheckedFeedTime(seenByUser = true)
-            val caughtUpIndex =
-                feed.indexOfFirst { it.uploaded <= lastCheckedFeedTime && !it.isUpcoming }
-            if (caughtUpIndex > 0 && !feed[caughtUpIndex - 1].isUpcoming) {
+        // the "all caught up" divider goes right after the last NEW video; it uses the same
+        // rule as the NEW badges (fetch time), as new uploads can be older than the last
+        // "mark as seen" and were placed wrongly by their upload time
+        val newCount = sortedFeed.count { it.isNew }
+        if (newCount > 0) {
+            if (selectedSortOrder == 0) {
                 sortedFeed.add(
-                    caughtUpIndex,
-                    StreamItem(type = VideoCardsAdapter.CAUGHT_UP_STREAM_TYPE)
+                    sortedFeed.indexOfLast { it.isNew } + 1,
+                    StreamItem(url = CAUGHT_UP_KEY, type = VideoCardsAdapter.CAUGHT_UP_STREAM_TYPE)
                 )
             }
+            sortedFeed.add(
+                0,
+                StreamItem(
+                    url = NEW_HEADER_KEY,
+                    type = VideoCardsAdapter.NEW_HEADER_STREAM_TYPE,
+                    title = resources.getQuantityString(R.plurals.new_videos_count, newCount, newCount)
+                )
+            )
         }
 
         binding.subProgress.isGone = true
@@ -418,5 +437,9 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
     companion object {
         private const val FILTER_GROUP_UNGROUPED = -2
         private const val FILTER_GROUP_ALL = -1
+
+        // stable keys, as the list diff compares items by url
+        private const val CAUGHT_UP_KEY = "feed_caught_up"
+        private const val NEW_HEADER_KEY = "feed_new_header"
     }
 }

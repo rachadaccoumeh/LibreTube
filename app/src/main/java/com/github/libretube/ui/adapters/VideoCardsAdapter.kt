@@ -12,6 +12,7 @@ import com.github.libretube.api.SponsorBlockLabelHelper
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.AllCaughtUpRowBinding
+import com.github.libretube.databinding.NewVideosHeaderRowBinding
 import com.github.libretube.databinding.TrendingRowBinding
 import com.github.libretube.extensions.dpToPx
 import com.github.libretube.extensions.toID
@@ -34,7 +35,8 @@ import kotlinx.coroutines.withContext
 
 class VideoCardsAdapter(
     private val columnWidthDp: Float? = null,
-    private val onMarkCaughtUp: (() -> Unit)? = null
+    private val onMarkCaughtUp: (() -> Unit)? = null,
+    private val onJumpToOldestNew: (() -> Unit)? = null
 ) :
     ListAdapter<StreamItem, VideoCardsViewHolder>(
         DiffUtilItemCallback(
@@ -44,7 +46,11 @@ class VideoCardsAdapter(
     ) {
 
     override fun getItemViewType(position: Int): Int {
-        return if (currentList[position].type == CAUGHT_UP_STREAM_TYPE) CAUGHT_UP_TYPE else NORMAL_TYPE
+        return when (currentList[position].type) {
+            CAUGHT_UP_STREAM_TYPE -> CAUGHT_UP_TYPE
+            NEW_HEADER_STREAM_TYPE -> NEW_HEADER_TYPE
+            else -> NORMAL_TYPE
+        }
     }
 
     fun removeItemById(videoId: String) {
@@ -65,6 +71,10 @@ class VideoCardsAdapter(
                 AllCaughtUpRowBinding.inflate(layoutInflater, parent, false)
             )
 
+            viewType == NEW_HEADER_TYPE -> VideoCardsViewHolder(
+                NewVideosHeaderRowBinding.inflate(layoutInflater, parent, false)
+            )
+
             else -> VideoCardsViewHolder(
                 TrendingRowBinding.inflate(layoutInflater, parent, false)
             )
@@ -76,7 +86,7 @@ class VideoCardsAdapter(
         val video = getItem(holder.bindingAdapterPosition)
         val videoId = video.url.orEmpty().toID()
 
-        val context = (holder.trendingRowBinding ?: holder.allCaughtUpBinding)!!.root.context
+        val context = holder.itemView.context
         val activity = (context as BaseActivity)
         val fragmentManager = activity.supportFragmentManager
 
@@ -84,6 +94,13 @@ class VideoCardsAdapter(
             markCaughtUpBtn.setOnClickListener {
                 onMarkCaughtUp?.invoke()
             }
+        }
+
+        holder.newVideosHeaderBinding?.apply {
+            // the header item carries the number of new videos in its title
+            newVideosCount.text = video.title
+            jumpToNewBtn.setOnClickListener { onJumpToOldestNew?.invoke() }
+            markSeenTopBtn.setOnClickListener { onMarkCaughtUp?.invoke() }
         }
 
         holder.trendingRowBinding?.apply {
@@ -179,5 +196,7 @@ class VideoCardsAdapter(
         private const val CAUGHT_UP_TYPE = 1
 
         const val CAUGHT_UP_STREAM_TYPE = "caught"
+        private const val NEW_HEADER_TYPE = 2
+        const val NEW_HEADER_STREAM_TYPE = "new_header"
     }
 }

@@ -1447,6 +1447,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             withContext(Dispatchers.IO) {
                 DatabaseHolder.Database.downloadDao().getAll()
                     .filter { it.download.videoId != videoId }
+                    // random order, so the same downloads are not always suggested first
+                    .shuffled()
                     .map { it.download.toStreamItem() }
             }
         } else {

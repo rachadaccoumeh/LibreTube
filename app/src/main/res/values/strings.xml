@@ -365,6 +365,12 @@
     <string name="all_caught_up">All caught up</string>
     <string name="all_caught_up_summary">You\'ve seen all new videos</string>
     <string name="mark_as_caught_up">Mark as caught up</string>
+    <string name="jump_to_oldest_new">Oldest new</string>
+    <string name="mark_as_seen_short">Mark seen</string>
+    <plurals name="new_videos_count">
+        <item quantity="one">%d new video</item>
+        <item quantity="other">%d new videos</item>
+    </plurals>
     <string name="new_badge">NEW</string>
     <string name="import_playlists">Import playlists</string>
     <string name="export_playlists">Export playlists</string>

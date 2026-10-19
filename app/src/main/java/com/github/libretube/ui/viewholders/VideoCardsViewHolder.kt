@@ -2,11 +2,13 @@ package com.github.libretube.ui.viewholders
 
 import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.databinding.AllCaughtUpRowBinding
+import com.github.libretube.databinding.NewVideosHeaderRowBinding
 import com.github.libretube.databinding.TrendingRowBinding
 
 class VideoCardsViewHolder : RecyclerView.ViewHolder {
     var trendingRowBinding: TrendingRowBinding? = null
     var allCaughtUpBinding: AllCaughtUpRowBinding? = null
+    var newVideosHeaderBinding: NewVideosHeaderRowBinding? = null
 
     constructor(binding: TrendingRowBinding) : super(binding.root) {
         trendingRowBinding = binding
@@ -14,5 +16,9 @@ class VideoCardsViewHolder : RecyclerView.ViewHolder {
 
     constructor(binding: AllCaughtUpRowBinding) : super(binding.root) {
         allCaughtUpBinding = binding
+    }
+
+    constructor(binding: NewVideosHeaderRowBinding) : super(binding.root) {
+        newVideosHeaderBinding = binding
     }
 }
