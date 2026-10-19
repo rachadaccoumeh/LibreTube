@@ -193,9 +193,13 @@ open class OnlinePlayerService : AbstractPlayerService() {
         }
 
         exoPlayer?.apply {
-            // automatically start playback when using the audio player
-            playWhenReady = (PlayerHelper.playAutomatically || isAudioOnlyPlayer) && !startPaused
-            prepare()
+            if (startPaused && !isAudioOnlyPlayer) {
+                prepareShowingFirstFrame()
+            } else {
+                // automatically start playback when using the audio player
+                playWhenReady = (PlayerHelper.playAutomatically || isAudioOnlyPlayer) && !startPaused
+                prepare()
+            }
         }
         startPaused = false
     }

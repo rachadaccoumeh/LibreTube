@@ -552,7 +552,36 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
         }
     }
 
+    /**
+     * Prepares the player paused, but with the video frame at the start position visible.
+     *
+     * A player that is prepared paused never renders a frame here (the decoder waits for output
+     * buffers), so the restored video stayed black. Play muted until the first frame is shown.
+     */
+    protected fun ExoPlayer.prepareShowingFirstFrame() {
+        val savedVolume = volume
+        val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() = finish()
+
+            fun finish() {
+                removeListener(this)
+                handler.removeCallbacksAndMessages(this)
+                pause()
+                volume = savedVolume
+            }
+        }
+        addListener(listener)
+        // never keep playing muted if no frame is ever shown, e.g. for audio only streams
+        handler.postDelayed(FIRST_FRAME_TIMEOUT_MS, listener) { listener.finish() }
+
+        volume = 0f
+        playWhenReady = true
+        prepare()
+    }
+
     companion object {
+        private const val FIRST_FRAME_TIMEOUT_MS = 20_000L
+
         private const val START_SERVICE_ACTION = "start_service_action"
         private const val STOP_SERVICE_ACTION = "stop_service_action"
         private const val RUN_PLAYER_COMMAND_ACTION = "run_player_command_action"
