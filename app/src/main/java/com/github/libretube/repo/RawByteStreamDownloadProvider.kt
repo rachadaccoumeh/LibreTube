@@ -141,7 +141,7 @@ class RawByteStreamDownloadProvider(val url: HttpUrl) : DownloadProvider {
     }
 
     companion object {
-        // maximum working tested chunk size is 3MB, the 512MB value here is from NewPipe
-        private const val BYTES_PER_REQUEST = 512 * 1024L
+        // maximum working tested chunk size is 3MB, larger ranges get throttled by YouTube
+        private const val BYTES_PER_REQUEST = 2 * 1024 * 1024L
     }
 }

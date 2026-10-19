@@ -571,9 +571,10 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                     downloadOverlay.isVisible = true
                     resumePauseBtn.setImageResource(R.drawable.ic_pause)
                     if (progressBar.isIndeterminate) return
-                    progressBar.incrementProgressBy(status.progress.toInt())
-                    val progressInfo = progressBar.progress.formatAsFileSize() +
-                            " / " + progressBar.max.formatAsFileSize()
+                    // the progress bar counts KiB, see DownloadsAdapter
+                    progressBar.incrementProgressBy((status.progress / 1024).toInt())
+                    val progressInfo = (progressBar.progress * 1024L).formatAsFileSize() +
+                            " / " + (progressBar.max * 1024L).formatAsFileSize()
                     fileSize.text = progressInfo
                 }
 
@@ -583,7 +584,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
             }
         }
 
-        toggleVisibilities()
+        // progress events arrive often, and toggleVisibilities reads the size of every file
+        if (status !is DownloadStatus.Progress) toggleVisibilities()
     }
 
     override fun onPause() {

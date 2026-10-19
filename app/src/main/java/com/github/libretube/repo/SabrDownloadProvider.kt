@@ -14,6 +14,7 @@ import com.github.libretube.player.parser.PlaybackRequest
 import com.github.libretube.player.parser.SabrClient
 import com.github.libretube.player.parser.Segment
 import okio.BufferedSink
+import kotlin.io.path.fileSize
 
 private const val TAG = "SabrDownload"
 
@@ -63,8 +64,11 @@ class SabrDownloadProvider(
                 Log.w(TAG, "downloadNextChunk: init segment was null for ${item.fileName}")
                 return DownloadProgressResult.Failed
             }
-            for (chunk in initSegment.data) {
-                sink.write(chunk)
+            // when resuming, the init segment is already at the start of the file
+            if (item.path.fileSize() == 0L) {
+                for (chunk in initSegment.data) {
+                    sink.write(chunk)
+                }
             }
             downloadHandle.initSegment = initSegment
 
@@ -89,6 +93,8 @@ class SabrDownloadProvider(
         for (chunk in segment.data) {
             sink.write(chunk)
         }
+        // the data must be on disk before the new position is stored, else a crash leaves a gap
+        sink.flush()
 
         downloadHandle.nextSegmentNumber = segment.sequenceNumber + 1
         currentPositionMillis += segment.duration

@@ -72,11 +72,12 @@ class DownloadsAdapter(
             val downloadSize = items.sumOf { it.downloadSize }
             val currentSize = items.filter { it.path.exists() }.sumOf { it.path.fileSize() }
 
-            if (downloadSize == -1L) {
-                progressBar.isIndeterminate = true
-            } else {
-                progressBar.max = downloadSize.toInt()
-                progressBar.progress = currentSize.toInt()
+            // reset explicitly, the view holder may be recycled from an item with unknown size
+            progressBar.isIndeterminate = downloadSize == -1L
+            if (downloadSize != -1L) {
+                // KiB instead of bytes, as files larger than 2GB overflow an Int
+                progressBar.max = (downloadSize / 1024).toInt()
+                progressBar.progress = (currentSize / 1024).toInt()
             }
 
             val totalSizeInfo = if (downloadSize > 0) {

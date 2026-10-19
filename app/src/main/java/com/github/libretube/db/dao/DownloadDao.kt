@@ -7,7 +7,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import java.nio.file.Path
 import com.github.libretube.db.obj.Download
 import com.github.libretube.db.obj.DownloadChapter
 import com.github.libretube.db.obj.DownloadItem
@@ -57,11 +59,18 @@ interface DownloadDao {
     @Query("DELETE FROM downloaditem WHERE id = :id")
     suspend fun deleteDownloadItemById(id: Int)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Query("SELECT * FROM downloaditem WHERE path = :path")
+    suspend fun findDownloadItemByPath(path: Path): DownloadItem?
+
+    // must not be REPLACE: that deletes the row first and CASCADE-deletes all its download items
+    @Upsert
     suspend fun insertDownload(download: Download)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDownloadChapter(downloadChapter: DownloadChapter)
+
+    @Query("DELETE FROM downloadChapters WHERE videoId = :videoId")
+    suspend fun deleteDownloadChapters(videoId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDownloadItem(downloadItem: DownloadItem): Long
