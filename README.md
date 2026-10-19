@@ -18,8 +18,12 @@
 [<img src="assets/badges/fdrload.png" alt="Get it on F-Droid" width="30%">](https://f-droid.org/en/packages/com.github.libretube/)
 [<img src="assets/badges/izzyload.png" alt="Get it on IzzyOnDroid" width="30%">](https://apt.izzysoft.de/fdroid/index/apk/com.github.libretube)<br/>
 [<img src="assets/badges/ghload.png" alt="Get it on GitHub" width="30%">](https://github.com/libre-tube/LibreTube/releases/latest)
+[<img src="assets/badges/ghload-nightly.png" alt="Get it on GitHub (Nightly)" width="30%">](https://github.com/libre-tube/LibreTube/releases/tag/nightly)
 
 </div>
+
+> **Note about Nightly builds** <br>
+> Nightly builds include features/fixes before the official release. Therefore, they are generally less stable than normal releases. Use nightly builds at your own risk.
 
 <details>
   <summary>📜️ Credits</summary>
@@ -102,18 +106,7 @@ Features
 Contributing
 </h2>
 
-Whether you have ideas, translations, design changes, code cleaning or really heavy code changes, help is always welcome. The more is done, the better it gets! Please respect our [Code of Conduct](https://github.com/libre-tube/LibreTube/blob/master/CODE_OF_CONDUCT.md) in order to keep all interactions and discussions healthy.
-
-You can open and build the project like any other normal Android project by using Android Studio.
-
-Please make sure the title of your pull request and the commit messages follow the [conventional commit types](https://github.com/commitizen/conventional-commit-types/blob/master/index.json) (e.g. `feat: support for xy`).
-For instance, the most common commit types are "feat", "fix", "refactor", "ci" and "chore".
-
-> [!NOTE]
-> Any issue avoiding the issue template will be ignored and forced to be closed.
-
-> [!NOTE]
-> The usage of AI to generate issue texts or pull requests is not permitted at this repository and thus such issues / pull requests will be ignored.
+For information on how to contribute, please check the [contribution guide](./CONTRIBUTING.md).
 
 <h2 align="left">
 <sub>
@@ -171,7 +164,7 @@ LibreTube aims to protect the privacy of its users. [Our Privacy Policy](/PRIVAC
 [![GNU GPLv3 Image](https://www.gnu.org/graphics/gplv3-127x51.png)](http://www.gnu.org/licenses/gpl-3.0.en.html)
 
 LibreTube is [Free Software](https://en.wikipedia.org/wiki/Free_software): You can use, study, share and modify it at your will. The app can be redistributed and/or modified under the terms of the
-[GNU General Public License version 3 or later](https://www.gnu.org/licenses/gpl.html) published by the 
+[GNU General Public License version 3 or later](https://www.gnu.org/licenses/gpl.html) published by the
 [Free Software Foundation](https://www.fsf.org/).
 
 <div align="right">

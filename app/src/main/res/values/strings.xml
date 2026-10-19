@@ -29,7 +29,6 @@
     <string name="region">Region</string>
     <string name="login_register">Log in/register</string>
     <string name="importsuccess">Subscribed</string>
-    <string name="downloadfailed">Download failed.</string>
     <string name="import_from_yt">Import subscriptions</string>
     <string name="import_from_yt_summary">From YouTube or NewPipe</string>
     <string name="app_theme">Theme</string>
@@ -148,7 +147,7 @@
     <string name="shapedIcon">Silly shaped</string>
     <string name="flameIcon">Flying flame</string>
     <string name="birdIcon">Boosted bird</string>
-    <string name="instance_summary">Piped, login, and account</string>
+    <string name="instance_summary">Data synchronization, account and history</string>
     <string name="customInstance_summary">Add…</string>
     <string name="instance_name">Instance name</string>
     <string name="instance_api_url">URL to instance API</string>
@@ -170,7 +169,6 @@
     <string name="downloading">Downloading…</string>
     <string name="download_paused">Download paused</string>
     <string name="download_completed">Download completed</string>
-    <string name="concurrent_downloads">Max concurrent downloads</string>
     <string name="concurrent_downloads_limit_reached">Max concurrent downloads limit reached.</string>
     <string name="unknown">Unknown</string>
     <string name="pause">Pause</string>
@@ -211,9 +209,7 @@
     <string name="chapters">Chapters</string>
     <string name="require_restart">App restart required</string>
     <string name="require_restart_message">Restart the app to use the new changes.</string>
-    <string name="navLabelVisibility">Label visibility</string>
     <string name="always">Always</string>
-    <string name="selected">Selected</string>
     <string name="never">Never</string>
     <string name="autoRotatePlayer">Auto-fullscreen</string>
     <string name="autoRotatePlayer_summary">Fullscreen playback when the device gets turned</string>
@@ -222,7 +218,7 @@
     <string name="data_saver_mode">Data-saver mode</string>
     <string name="data_saver_mode_summary">Skip thumbnails and other images</string>
     <string name="search_history_summary">Remember searches</string>
-    <string name="watch_history_summary">Keep track of watched videos locally</string>
+    <string name="watch_history_summary">Keep track of watched videos</string>
     <string name="history_summary">Watch and search history</string>
     <string name="watch_positions_title">Remembered playback positions</string>
     <string name="reset_watch_positions">Reset</string>
@@ -241,8 +237,6 @@
     <string name="notifications">Notifications</string>
     <string name="notify_new_streams">Show notifications for new streams</string>
     <string name="notify_new_streams_summary">Display notifications for new streams from creators you follow</string>
-    <string name="show_stream_thumbnails">Show stream thumbnails</string>
-    <string name="show_stream_thumbnails_summary">Show the thumbnails of new streams. Enabling this will consume additional data</string>
     <string name="checking_frequency">Checking every …</string>
     <string name="checking_frequency_15_minutes">15 minutes</string>
     <string name="checking_frequency_30_minutes">30 minutes</string>
@@ -269,16 +263,11 @@
     <string name="copied">Copied</string>
     <string name="share_with_time">Share with time code</string>
     <string name="export_subscriptions">Export subscriptions</string>
-    <string name="skip_buttons">Skip buttons</string>
-    <string name="skip_buttons_summary">Show buttons to skip to the next or previous video</string>
-    <string name="history_size">Maximum history size</string>
-    <string name="unlimited">Unlimited</string>
     <string name="background_mode">Background mode</string>
     <string name="add_to_queue">Add to queue</string>
     <string name="misc">Misc</string>
     <string name="take_a_break">Time to take a break</string>
     <string name="yt_shorts">Shorts</string>
-    <string name="no_subtitles_available">No subtitles available</string>
     <string name="repeat_mode">Repeat mode</string>
     <string name="resize_mode_fit">Fit</string>
     <string name="resize_mode_fill">Fill</string>
@@ -301,7 +290,6 @@
     <string name="picture_in_picture">Picture-in-Picture</string>
     <string name="pip">PiP</string>
     <string name="player_resize_mode">Resize mode</string>
-    <string name="maximum_image_cache">Max image cache size</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
     <string name="open_copied">Open</string>
     <string name="device_info">Device Info</string>
@@ -350,21 +338,16 @@
     <string name="end_time">End time</string>
     <string name="notification_time">Restrict notification time</string>
     <string name="notification_time_summary">Limit the time span in which stream notifications are shown</string>
-    <string name="navbar_order">Order</string>
     <string name="layout">Layout</string>
     <string name="audio_track">Audio track</string>
     <string name="unsupported_file_format">Unsupported file format: %1$s</string>
     <string name="auto_quality">Auto</string>
-    <string name="limit_to_runtime">Limit to runtime</string>
     <string name="trends">Trends</string>
     <string name="featured">Featured</string>
     <string name="trending">What\'s trending now</string>
     <string name="bookmarks">Bookmarks</string>
     <string name="bookmark">Bookmark</string>
     <string name="clear_bookmarks">Clear bookmarks</string>
-    <string name="queue_insert_related_videos">Insert related videos</string>
-    <string name="autoplay_playlists">Autoplay playlists</string>
-    <string name="autoplay_playlists_summary">Automatically play next video in playlists regardless of selected autoplay setting</string>
     <string name="local_playlists">Local playlists</string>
     <string name="brightness">Brightness</string>
     <string name="volume">Volume</string>
@@ -373,7 +356,6 @@
     <string name="swipe_controls_summary">Swipe to adjust the brightness and volume while in fullscreen mode</string>
     <string name="pinch_control">Pinch control</string>
     <string name="pinch_control_summary">Use pinch gesture to zoom in/out</string>
-    <string name="defaults">Defaults</string>
     <string name="comments_disabled">Comments are disabled by the uploader.</string>
     <string name="no_comments_available">This video has no comments.</string>
     <string name="theme_monochrome">Minimalistic monochrome</string>
@@ -400,7 +382,6 @@
     <string name="already_downloaded_video">This video quality is already downloaded. Download again?</string>
     <string name="already_downloaded_audio">This audio quality is already downloaded. Download again?</string>
     <string name="color_violet">Versatile violet</string>
-    <string name="failed_fetching_instances">Could not fetch available instances.</string>
     <string name="hide_watched_from_feed">Hide already watched videos</string>
     <string name="playlistUrl">Playlist URL</string>
     <string name="shuffle">Shuffle</string>
@@ -416,8 +397,6 @@
     <string name="skip_silence">Skip silence</string>
     <string name="help">Help</string>
     <string name="faq">FAQ</string>
-    <string name="codecs">Video codecs</string>
-    <string name="audio_codecs">Audio codecs</string>
     <string name="mark_as_watched">Mark as watched</string>
     <string name="category">Category</string>
     <string name="stats_for_nerds">Stats for nerds</string>
@@ -426,8 +405,6 @@
     <string name="autoplay_countdown">Autoplay countdown</string>
     <string name="autoplay_countdown_summary">Show a 5s countdown before auto-playing the next video</string>
     <string name="playing_next">Playing next in %1$s</string>
-    <string name="disable_proxy">Disable Piped proxy</string>
-    <string name="disable_proxy_summary">Load videos and images directly from YouTube\'s servers. Only enable the option if you always use a VPN</string>
     <string name="auto_fullscreen_shorts">Auto fullscreen on short videos</string>
     <string name="channel_groups">Channel groups</string>
     <string name="new_group">New</string>
@@ -447,7 +424,7 @@
     <string name="creation_date_reversed">Creation date (reversed)</string>
     <string name="alphabetic">Alphabetic</string>
     <string name="alphabetic_reversed">Alphabetic (reversed)</string>
-    <string name="welcome">Welcome to LibreTube</string>
+    <string name="welcome">Welcome to LibreTube! To get started, please select a synchronization mode below to decide whether to synchronize your user data across devices.</string>
     <string name="choose_instance">Please choose an instance first!</string>
     <string name="choose_instance_long">Please choose a Piped instance to use from below. The Piped instance will act as the middleman between you and YouTube. These instances are located at different physical locations - indicated by their country flag(s). Instances physically closer to you are likely faster than instances that are not. You can change the instance you use in the settings at any time.</string>
     <string name="mark_as_unwatched">Mark as unwatched</string>
@@ -478,8 +455,6 @@
     <string name="remove_watched_videos">Remove watched videos</string>
     <string name="no_fullscreen_resolution">No-fullscreen resolution</string>
     <string name="same_as_fullscreen">Same as fullscreen</string>
-    <string name="playback_during_call">Continue playback during phone call</string>
-    <string name="playback_during_call_summary">Note that this also affects the app to not handle any kind of audio focus anymore</string>
     <string name="segment_submitted">Segment submitted</string>
     <string name="vote_for_segment">Vote for segment</string>
     <string name="upvote">Up</string>
@@ -492,7 +467,6 @@
     <string name="enqueueing_playlist_download">Enqueueing videos to download of playlist "%1$s"</string>
     <string name="audio_language">Audio language</string>
     <string name="default_language">Default</string>
-    <string name="behavior_when_minimized">Behavior when minimized</string>
     <string name="external_player">External player</string>
     <string name="screenshot">Screenshot</string>
     <string name="screenshot_saved">Screenshot saved</string>
@@ -501,6 +475,16 @@
     <string name="update_information">Update information</string>
     <string name="mode_of_operation">Mode of operation</string>
     <string name="delete_playlist_include_vidoes">Also delete all videos from the playlist?</string>
+    <string name="load_data_from">Load YouTube data from</string>
+    <string name="load_data_from_local">Directly from YouTube</string>
+    <string name="load_data_from_piped">via Piped (deprecated)</string>
+    <string name="libretube_sync_server">LibreTube sync server</string>
+    <string name="data_synchronization">Data synchronization</string>
+    <string name="sync_server_type">Sync user data (subscriptions, playlists) via</string>
+    <string name="sync_server_url">URL to LibreTube sync server</string>
+    <string name="export">Export</string>
+    <string name="exporting">Export in progress…</string>
+    <string name="account">Account</string>
 
     <!-- Backup & Restore Settings -->
     <string name="import_subscriptions_from">Import subscriptions from</string>
@@ -532,9 +516,7 @@
     <string name="sb_invalid_segment">Invalid segment start or end</string>
     <string name="contribute_to_sponsorblock">Contribute to SponsorBlock</string>
     <string name="sponsorblock_user_id">SponsorBlock UserID</string>
-    <string name="remember_playback_speed">Remember playback speed</string>
     <string name="successfully_removed_from_playlist">Successfully removed \"%1$s\" from the playlist.</string>
-    <string name="watched">Watched</string>
     <string name="no_segments_found">There are no segments for this video yet.</string>
     <string name="start_sleep_timer">Start sleep timer</string>
     <string name="disable_sleep_timer">Disable sleep timer</string>
@@ -582,6 +564,13 @@
     <string name="long_press_fast_forward">Fast forward on long press</string>
     <string name="long_press_fast_forward_summary">Play video with double speed while tapping and holding the screen.</string>
     <string name="resume_all">Resume Downloads</string>
+    <string name="missing_auth_falling_back">Not logged in. Data synchronization turned off.</string>
+    <string name="sync_type_summary_none">Store all user data offline within the app. That means that you can\'t synchronize data between your devices, but might be the right choice if you only use a single device or don\'t care about syncing between devices.</string>
+    <string name="sync_type_summary_libretube">Store playlists and subscriptions data on LibreTube\'s sync server (%1$s). This allows you to log in to your account at any other device to have access to your subscriptions and playlists. Privacy Disclaimer: User data is pseudonymized on server side, but not end-to-end encrypted. By choice, you can also host your own version of the server, but usually the official server should be just fine.</string>
+    <string name="sync_type_summary_piped">Experts only, deprecated:\nStore playlists and subscriptions data on Piped (%1$s). As Piped doesn\'t have any public instances anymore, you have to be hosting your own Piped instance.</string>
+    <string name="switch_sync_type_warning">If you previously used a different sync type, please take a backup of your subscriptions and playlists first. You can then switch the sync type in the instance settings and re-import your data from the backup.</string>
+    <string name="oidc_login">Continue with OIDC</string>
+    <string name="already_downloaded_warning">You already downloaded this video!</string>
 
     <!-- Notification channel strings -->
     <string name="download_channel_name">Download Service</string>

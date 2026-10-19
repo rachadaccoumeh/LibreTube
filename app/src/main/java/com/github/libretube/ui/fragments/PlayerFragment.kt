@@ -11,6 +11,7 @@ import android.content.pm.ActivityInfo
 import android.util.Log
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.media.session.PlaybackState
 import android.os.Bundle
 import android.os.Handler
@@ -25,6 +26,7 @@ import android.view.ViewGroup.LayoutParams
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.trackPipAnimationHintView
 import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.constraintlayout.motion.widget.TransitionAdapter
 import androidx.core.content.ContextCompat
@@ -43,6 +45,7 @@ import androidx.fragment.app.commit
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -229,11 +232,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             when (event) {
                 PlayerEvent.Next -> {
-                    PlayingQueue.getNext()?.let { playNextVideo(it) }
+                    PlayingQueue.getNext()?.let { playVideo(it) }
                 }
 
                 PlayerEvent.Prev -> {
-                    PlayingQueue.getPrev()?.let { playNextVideo(it) }
+                    PlayingQueue.getPrev()?.let { playVideo(it) }
                 }
 
                 PlayerEvent.Background -> {
@@ -299,7 +302,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
                 // if the current tracks are empty, the player is transitioning at the moment
                 val isTransitioning = playerController.currentTracks.isEmpty
-                if (PlayerHelper.isAutoPlayEnabled(playlistId != null) && autoPlayCountdownEnabled && !isTransitioning) {
+                if ((PlayingQueue.hasNext() || PlayerHelper.autoPlayEnabled) && autoPlayCountdownEnabled && !isTransitioning) {
                     showAutoPlayCountdown()
                 } else {
                     binding.player.showControllerPermanently()
@@ -470,7 +473,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
 
         val playerData = requireArguments().parcelable<PlayerData>(IntentData.playerData)!!
-        videoId = playerData.videoId!!
+        playerData.videoId?.let { videoId = it }
         isOffline = playerData.isOffline
         playlistId = playerData.playlistId
         channelId = playerData.channelId
@@ -491,6 +494,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             setFullscreen()
         }
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                requireActivity().trackPipAnimationHintView(binding.player)
+            }
+        }
+
         chaptersViewModel.chaptersLiveData.observe(viewLifecycleOwner) {
             binding.player.setCurrentChapterName()
             playerControlsBinding.exoProgress.setChapters(it.orEmpty())
@@ -505,11 +514,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
 
-        val localDownloadVersion = runBlocking(Dispatchers.IO) {
-            DatabaseHolder.Database.downloadDao().findById(videoId)
-        }
-
-        if (!isOffline && localDownloadVersion != null && createNewSession) {
+        val localDownloadVersion = if (!isOffline && createNewSession) {
+            runBlocking(Dispatchers.IO) {
+                DatabaseHolder.Database.downloadDao().findById(videoId)
+            }
+        } else null
+        if (localDownloadVersion != null) {
             // the dialog must also be visible when in fullscreen, thus we need to use the activity's
             // fragment manager and not the one from [PlayerFragment]
             val fragmentManager = requireActivity().supportFragmentManager
@@ -585,7 +595,6 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             val isNoInternet = activity is NoInternetActivity
 
             OfflinePlayerService::class.java to bundleOf(
-                IntentData.videoId to videoId,
                 IntentData.playerData to playerData
                     .copy(downloadTab = playerData.downloadTab ?: DownloadTab.VIDEO),
                 IntentData.noInternet to isNoInternet
@@ -626,7 +635,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
                 // reload the streams data and playback, metadata apparently no longer exists
                 if (streams == null) {
-                    playNextVideo(videoId)
+                    playVideo(videoId)
                     return@startMediaService
                 }
 
@@ -777,7 +786,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 IntentData.id to videoId,
                 IntentData.shareObjectType to ShareObjectType.VIDEO,
                 IntentData.shareData to ShareData(
-                    currentVideo = streams.title,
+                    title = streams.title,
+                    previewImageUrl = streams.thumbnailUrl,
                     currentPosition = playerController.currentPosition / 1000
                 )
             )
@@ -817,11 +827,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
 
         playerControlsBinding.skipPrev.setOnClickListener {
-            PlayingQueue.getPrev()?.let { prev -> playNextVideo(prev) }
+            PlayingQueue.getPrev()?.let { prev -> playVideo(prev) }
         }
 
         playerControlsBinding.skipNext.setOnClickListener {
-            PlayingQueue.getNext()?.let { next -> playNextVideo(next) }
+            PlayingQueue.getNext()?.let { next -> playVideo(next) }
         }
 
         binding.relPlayerDownload.setOnClickListener {
@@ -1255,10 +1265,20 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
      * You many only call this if the video is of the same type as the type of the currently running
      * video, i.e. either both are online or both are offline.
      */
-    fun playNextVideo(nextId: String) {
+    fun playVideo(videoId: String) {
         playerController.sendCustomCommand(
             AbstractPlayerService.runPlayerActionCommand,
-            bundleOf(PlayerCommand.PLAY_VIDEO_BY_ID.name to nextId)
+            bundleOf(PlayerCommand.PLAY_VIDEO_BY_ID.name to videoId)
+        )
+    }
+
+    /**
+     * Play the next video.
+     */
+    fun playNextVideo() {
+        playerController.sendCustomCommand(
+            AbstractPlayerService.runPlayerActionCommand,
+            bundleOf(PlayerCommand.PLAY_NEXT_VIDEO.name to null)
         )
     }
 
@@ -1430,7 +1450,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
         playerBackgroundBinding.autoplayCountdown.startCountdown {
-            PlayingQueue.getNext()?.let { playNextVideo(it) }
+            playNextVideo()
         }
     }
 
@@ -1461,7 +1481,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         } else {
             // YouTube video link without time or not the current video, thus load in player
-            playNextVideo(videoId)
+            playVideo(videoId)
         }
     }
 
@@ -1472,6 +1492,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
     private suspend fun getTimeFrameReceiver(): TimeFrameReceiver? = withContext(Dispatchers.IO) {
         return@withContext if (isOffline) {
+            if (!::videoId.isInitialized) return@withContext null
+
             val downloadItems =
                 DatabaseHolder.Database.downloadDao().getDownloadById(videoId)?.downloadItems
             downloadItems?.firstOrNull { it.path.exists() && it.type == FileType.VIDEO }?.path?.let {
@@ -1585,9 +1607,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     /**
      * Detect whether PiP is supported and enabled
      */
-    private fun isPipAvailable(): Boolean {
-        return PictureInPictureCompat.isPictureInPictureAvailable(requireContext())
-    }
+    private fun isPipAvailable() =
+        PictureInPictureCompat.isPictureInPictureAvailable(requireContext())
+                && PictureInPictureCompat.isPictureInPictureEnabled(requireContext())
 
     private fun shouldStartPiP(): Boolean {
         return isPipAvailable() && ::playerController.isInitialized && playerController.isPlaying

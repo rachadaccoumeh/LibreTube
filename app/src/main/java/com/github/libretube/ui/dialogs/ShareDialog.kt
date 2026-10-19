@@ -1,29 +1,38 @@
 package com.github.libretube.ui.dialogs
 
 import android.app.Dialog
+import android.content.Context
+import android.content.ClipData
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.RadioButton
+import androidx.core.content.FileProvider
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.lifecycleScope
+import com.github.libretube.BuildConfig
 import com.github.libretube.R
 import com.github.libretube.constants.IntentData
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.DialogShareBinding
-import com.github.libretube.db.DatabaseHelper
 import com.github.libretube.db.DatabaseHolder.Database
-import com.github.libretube.db.obj.CustomInstance
 import com.github.libretube.enums.ShareObjectType
 import com.github.libretube.extensions.parcelable
 import com.github.libretube.extensions.serializable
 import com.github.libretube.helpers.ClipboardHelper
+import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.obj.ShareData
+import com.github.libretube.repo.UserDataRepositoryHelper
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import java.io.File
 
 class ShareDialog : DialogFragment() {
     private lateinit var id: String
@@ -45,10 +54,6 @@ class ShareDialog : DialogFragment() {
             Database.customInstanceDao().getAll().filter { it.frontendUrl.isNotEmpty() }
         }
 
-        val shareableTitle = shareData.currentChannel
-            ?: shareData.currentVideo
-            ?: shareData.currentPlaylist.orEmpty()
-
         val binding = DialogShareBinding.inflate(layoutInflater)
 
         // add one radio button per custom instance
@@ -64,30 +69,8 @@ class ShareDialog : DialogFragment() {
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
             }
-            binding.shareHostGroup.addView(radioButton)
         }
 
-        binding.shareHostGroup.check(
-            when (val previousSelection =
-                PreferenceHelper.getInt(PreferenceKeys.SELECTED_SHARE_HOST, 0)) {
-                0 -> binding.youtube.id
-                1 -> binding.piped.id
-                else -> customInstances.firstOrNull {
-                    it.name.hashCode() == previousSelection
-                }?.name?.hashCode() ?: 0
-            }
-        )
-
-        binding.shareHostGroup.setOnCheckedChangeListener { _, checkedId ->
-            binding.linkPreview.text = generateLinkText(binding, customInstances)
-            PreferenceHelper.putInt(
-                PreferenceKeys.SELECTED_SHARE_HOST, when {
-                    binding.youtube.isChecked -> 0
-                    binding.piped.isChecked -> 1
-                    else -> checkedId
-                }
-            )
-        }
 
         if (shareObjectType == ShareObjectType.VIDEO) {
             binding.timeStampSwitchLayout.isVisible = true
@@ -98,13 +81,24 @@ class ShareDialog : DialogFragment() {
             binding.timeCodeSwitch.setOnCheckedChangeListener { _, isChecked ->
                 binding.timeStampInputLayout.isVisible = isChecked
                 PreferenceHelper.putBoolean(PreferenceKeys.SHARE_WITH_TIME_CODE, isChecked)
-                binding.linkPreview.text = generateLinkText(binding, customInstances)
+                binding.linkPreview.text = generateLinkText(binding)
             }
             binding.timeStamp.addTextChangedListener {
-                binding.linkPreview.text = generateLinkText(binding, customInstances)
+                binding.linkPreview.text = generateLinkText(binding)
             }
-            val timeStamp =
-                shareData.currentPosition ?: DatabaseHelper.getWatchPositionBlocking(id)?.div(1000)
+            val timeStamp = shareData.currentPosition
+            if (timeStamp == null) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    runCatching {
+                        val timeStamp = UserDataRepositoryHelper.userDataRepository.getFromWatchHistory(id)
+                            ?.metadata?.positionMillis?.div(10000) ?: return@runCatching
+                        withContext(Dispatchers.Main) {
+                            binding.timeStamp.setText(timeStamp.toString())
+                        }
+                    }
+                }
+            }
+
             binding.timeStamp.setText((timeStamp ?: 0L).toString())
             if (binding.timeCodeSwitch.isChecked) {
                 binding.timeStampInputLayout.isVisible = true
@@ -115,7 +109,7 @@ class ShareDialog : DialogFragment() {
             ClipboardHelper.save(requireContext(), text = binding.linkPreview.text.toString())
         }
 
-        binding.linkPreview.text = generateLinkText(binding, customInstances)
+        binding.linkPreview.text = generateLinkText(binding)
 
         return MaterialAlertDialogBuilder(requireContext())
             .setTitle(getString(R.string.share))
@@ -123,8 +117,16 @@ class ShareDialog : DialogFragment() {
             .setPositiveButton(R.string.share) { _, _ ->
                 val intent = Intent(Intent.ACTION_SEND)
                     .putExtra(Intent.EXTRA_TEXT, binding.linkPreview.text.toString())
-                    .putExtra(Intent.EXTRA_SUBJECT, shareableTitle)
+                    .putExtra(Intent.EXTRA_TITLE, shareData.title)
                     .setType("text/plain")
+                    .apply {
+                        shareData.previewImageUrl?.let {
+                            val uri = runBlocking { generatePreviewUri(requireContext(), it) }
+                            clipData = ClipData.newRawUri(null, uri)
+                            data = uri
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    }
                 val shareIntent = Intent.createChooser(intent, getString(R.string.shareTo))
                 requireContext().startActivity(shareIntent)
             }
@@ -133,46 +135,44 @@ class ShareDialog : DialogFragment() {
     }
 
     private fun generateLinkText(
-        binding: DialogShareBinding,
-        customInstances: List<CustomInstance>
+        binding: DialogShareBinding
     ): String {
-        val host = when {
-            binding.piped.isChecked -> PIPED_FRONTEND_URL
-            binding.youtube.isChecked -> YOUTUBE_FRONTEND_URL
-            // only available for custom instances
-            else -> {
-                val selectedCustomInstance = customInstances
-                    .firstOrNull { it.name.hashCode() == binding.shareHostGroup.checkedRadioButtonId }
-                selectedCustomInstance?.frontendUrl?.trimEnd('/') ?: YOUTUBE_FRONTEND_URL
-            }
-        }
         val url = when (shareObjectType) {
             ShareObjectType.VIDEO -> {
+                val baseUrl = "$YOUTUBE_SHORT_URL/$id"
+
                 val queryParams = mutableListOf<String>()
-                if (host != YOUTUBE_FRONTEND_URL) {
-                    queryParams.add("v=${id}")
-                }
                 if (binding.timeCodeSwitch.isChecked) {
                     queryParams += "t=${binding.timeStamp.text}"
                 }
-                val baseUrl =
-                    if (host == YOUTUBE_FRONTEND_URL) "$YOUTUBE_SHORT_URL/$id" else "$host/watch"
 
                 if (queryParams.isEmpty()) baseUrl
                 else baseUrl + "?" + queryParams.joinToString("&")
             }
 
-            ShareObjectType.PLAYLIST -> "$host/playlist?list=$id"
-            else -> "$host/channel/$id"
+            ShareObjectType.PLAYLIST -> "$YOUTUBE_FRONTEND_URL/playlist?list=$id"
+            else -> "$YOUTUBE_FRONTEND_URL/channel/$id"
         }
 
         return url
+    }
+
+    private suspend fun generatePreviewUri(context: Context, imageUrl: String): Uri? {
+        val file = withContext(Dispatchers.IO) {
+            val shareImageCacheDir = File(context.cacheDir, "share_image").also {
+                it.mkdirs()
+            }
+            val file = File(shareImageCacheDir, "share_preview.png")
+            val downloadSuccess = ImageHelper.downloadImage(context, imageUrl, file.toPath())
+            file.takeIf { downloadSuccess }
+        } ?: return null
+
+        return FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.fileprovider", file)
     }
 
     companion object {
         const val YOUTUBE_FRONTEND_URL = "https://www.youtube.com"
         const val YOUTUBE_MUSIC_URL = "https://music.youtube.com"
         const val YOUTUBE_SHORT_URL = "https://youtu.be"
-        const val PIPED_FRONTEND_URL = "https://piped.video"
     }
 }

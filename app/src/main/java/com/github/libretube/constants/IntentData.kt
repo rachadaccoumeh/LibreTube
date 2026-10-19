@@ -22,6 +22,7 @@ object IntentData {
     const val query = "query"
     const val playlistDescription = "playlistDescription"
     const val playlistName = "playlistName"
+    const val playlistThumbnail = "playlistThumbnail"
     const val shareObjectType = "shareObjectType"
     const val shareData = "shareData"
     const val currentPosition = "currentPosition"
@@ -62,4 +63,5 @@ object IntentData {
     const val customInstance = "customInstance"
     const val audioOnly = "audioOnly"
     const val category = "category"
+    const val outputUri = "outputUri"
 }

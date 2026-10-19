@@ -26,6 +26,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
 
 class LocalFeedRepository : FeedRepository {
     private val relevantTabs =
@@ -37,6 +38,8 @@ class LocalFeedRepository : FeedRepository {
             if (filter.isEnabled) tab else null
         }.toTypedArray()
 
+    private val durationBetweenAutomaticRefreshes = Duration.ofDays(1)
+
     override suspend fun submitFeedItemChange(feedItem: SubscriptionsFeedItem) {
         DatabaseHolder.Database.feedDao().update(feedItem)
     }
@@ -46,28 +49,40 @@ class LocalFeedRepository : FeedRepository {
     }
 
     override suspend fun getFeed(
-        forceRefresh: Boolean,
+        refresh: FeedRefresh,
         onProgressUpdate: (FeedProgress) -> Unit
     ): List<StreamItem> {
         val nowMillis = Instant.now().toEpochMilli()
         val minimumDateMillis = nowMillis - Duration.ofDays(MAX_FEED_AGE_DAYS).toMillis()
 
-        val channelIds = SubscriptionHelper.getSubscriptionChannelIds()
+        val channelIdsToRefresh = when (refresh) {
+            is FeedRefresh.All -> {
+                val channelIds = SubscriptionHelper.getSubscriptionChannelIds()
+                // remove all channels that are no longer subscribed to, e.g. when the user switched
+                // the account
+                DatabaseHolder.Database.feedDao().deleteAllExcept(channelIds)
+                channelIds
+            }
+            is FeedRefresh.Automatically -> emptyList()
+            is FeedRefresh.OnlySome -> refresh.channelIds
+        }
 
-        if (!forceRefresh) {
-            val feed = DatabaseHolder.Database.feedDao().getAll()
-            val oneDayAgo = nowMillis - Duration.ofDays(1).toMillis()
-
-            // only refresh if feed is empty or last refresh was more than a day ago
+        if (refresh is FeedRefresh.Automatically) {
             val lastRefreshMillis =
                 PreferenceHelper.getLong(PreferenceKeys.LAST_LOCAL_FEED_REFRESH_TIMESTAMP_MILLIS, 0)
-            if (feed.isNotEmpty() && lastRefreshMillis > oneDayAgo) {
-                return feed.map(SubscriptionsFeedItem::toStreamItem)
+            val durationSinceLastRefresh = nowMillis - lastRefreshMillis
+
+            // only refresh if feed is empty or last refresh was more than a day ago
+            if (durationSinceLastRefresh < durationBetweenAutomaticRefreshes.toMillis()) {
+                val feed = DatabaseHolder.Database.feedDao().getAll()
+                if (feed.isNotEmpty()) {
+                    return feed.map(SubscriptionsFeedItem::toStreamItem)
+                }
             }
         }
 
         DatabaseHolder.Database.feedDao().cleanUpOlderThan(minimumDateMillis)
-        refreshFeed(channelIds, minimumDateMillis, onProgressUpdate)
+        refreshFeed(channelIdsToRefresh, minimumDateMillis, onProgressUpdate)
         PreferenceHelper.putLong(PreferenceKeys.LAST_LOCAL_FEED_REFRESH_TIMESTAMP_MILLIS, nowMillis)
 
         return DatabaseHolder.Database.feedDao().getAll().map(SubscriptionsFeedItem::toStreamItem)
@@ -91,10 +106,10 @@ class LocalFeedRepository : FeedRepository {
         }
 
         for (channelIdChunk in channelIds.chunked(CHANNEL_CHUNK_SIZE)) {
-            val count = channelExtractionCount.get();
+            val count = channelExtractionCount.get()
             if (count >= CHANNEL_BATCH_SIZE) {
                 // add a delay after each BATCH_SIZE amount of fully-fetched channels
-                delay(CHANNEL_BATCH_DELAY.random())
+                delay(CHANNEL_BATCH_DELAY.random().milliseconds)
                 channelExtractionCount.set(0)
             }
 
@@ -133,7 +148,7 @@ class LocalFeedRepository : FeedRepository {
     ): Pair<Subscription?, List<StreamItem>> {
         val channelUrl = "$YOUTUBE_FRONTEND_URL/channel/${channelId}"
         val feedInfo = FeedInfo.getInfo(channelUrl)
-        val feedInfoItems = feedInfo.relatedItems.associateBy { it.url }
+        val feedInfoItems = feedInfo.relatedItems.associateBy { it.url.toID() }
 
         val mostRecentChannelVideo = feedInfo.relatedItems.maxBy {
             it.uploadDate?.offsetDateTime()?.toInstant()?.toEpochMilli() ?: 0
@@ -175,7 +190,7 @@ class LocalFeedRepository : FeedRepository {
             item.toStreamItem(
                 channelAvatar,
                 // shorts fetched via the shorts tab don't have upload dates so we fall back to the feedInfo
-                feedInfoItems[item.url]
+                feedInfoItems[item.url.toID()]
             )
         }.filter { it.uploaded > minimumDateMillis }
         return Pair(subscription, streamItems)

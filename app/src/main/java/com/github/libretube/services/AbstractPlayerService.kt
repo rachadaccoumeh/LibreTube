@@ -27,12 +27,14 @@ import androidx.media3.session.SessionResult
 import com.github.libretube.R
 import com.github.libretube.api.JsonHelper
 import com.github.libretube.api.obj.Segment
+import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.IntentData
 import com.github.libretube.enums.PlayerCommand
 import com.github.libretube.enums.PlayerEvent
 import com.github.libretube.enums.SbSkipOptions
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.parcelableExtra
+import com.github.libretube.extensions.toID
 import com.github.libretube.extensions.toastFromMainThread
 import com.github.libretube.extensions.updateParameters
 import com.github.libretube.helpers.PlayerHelper
@@ -40,7 +42,6 @@ import com.github.libretube.helpers.PlayerHelper.getCurrentSegment
 import com.github.libretube.ui.activities.MainActivity
 import com.github.libretube.util.DefaultTrackSelectorWithAudioQualitySupport
 import com.github.libretube.util.NowPlayingNotification
-import com.github.libretube.util.PauseableTimer
 import com.github.libretube.util.PlayingQueue
 import com.github.libretube.util.PlayingQueueMode
 import com.google.common.util.concurrent.ListenableFuture
@@ -64,11 +65,6 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
 
     val handler = Handler(Looper.getMainLooper())
 
-    private val watchPositionTimer = PauseableTimer(
-        onTick = ::saveWatchPosition,
-        delayMillis = PlayerHelper.WATCH_POSITION_TIMER_DELAY_MS
-    )
-
     // SponsorBlock Segment data
     private var sponsorBlockAutoSkip = true
     protected val sponsorBlockConfig = PlayerHelper.getSponsorBlockCategories()
@@ -86,10 +82,8 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
             super.onIsPlayingChanged(isPlaying)
 
             // Start or pause watch position timer
-            if (isPlaying) {
-                watchPositionTimer.resume()
-            } else {
-                watchPositionTimer.pause()
+            if (!isPlaying) {
+                saveWatchPosition()
             }
         }
 
@@ -200,6 +194,10 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
                 navigateVideo(args.getString(PlayerCommand.PLAY_VIDEO_BY_ID.name) ?: return)
             }
 
+            args.containsKey(PlayerCommand.PLAY_NEXT_VIDEO.name) -> {
+                playNextVideo()
+            }
+
             args.containsKey(PlayerCommand.TOGGLE_AUDIO_ONLY_MODE.name) -> {
                 isAudioOnlyPlayer = args.getBoolean(PlayerCommand.TOGGLE_AUDIO_ONLY_MODE.name)
                 trackSelector?.updateParameters {
@@ -220,6 +218,32 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
     }
 
     /**
+     * Plays the next video.
+     *
+     * If a video ID is explicitly given, it is played next,
+     * otherwise a queued video (which includes playlists) is chosen.
+     *
+     * If no video is queued and autoplay is enabled, a related video is used.
+     */
+    fun playNextVideo(videoId: String? = null, relatedStreams: List<StreamItem>? = null) {
+        if (PlayingQueue.repeatMode == Player.REPEAT_MODE_ONE) {
+            exoPlayer?.seekTo(0)
+            return
+        }
+
+        if (!shouldHandleAutoplay) {
+            return
+        }
+
+        val nextVideo = videoId ?: PlayingQueue.getNext()
+        ?: relatedStreams?.firstOrNull { !it.isLive }?.url?.toID()
+            ?.takeIf { PlayerHelper.autoPlayEnabled && PlayerHelper.relatedStreamsEnabled }
+        ?: return
+
+        navigateVideo(nextVideo)
+    }
+
+    /**
      * Clear the currently playing video and start playing the new provided [videoId]
      *
      * If overriding, clearing old data must be done BEFORE calling [super.navigateVideo()]!
@@ -227,11 +251,6 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
     @CallSuper
     open fun navigateVideo(videoId: String) {
         sponsorBlockSegments = emptyList()
-
-        updatePlaylistMetadata {
-            setExtras(bundleOf(IntentData.videoId to videoId))
-        }
-
         exoPlayer?.clearMediaItems()
 
         this.videoId = videoId
@@ -407,6 +426,10 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
     @CallSuper
     open suspend fun startPlayback() {
         isTransitioning = true
+
+        updatePlaylistMetadata {
+            setExtras(bundleOf(IntentData.videoId to videoId))
+        }
     }
 
     private fun saveWatchPosition() {
@@ -458,7 +481,6 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
             saveWatchPosition()
 
             notificationProvider = null
-            watchPositionTimer.destroy()
 
             handler.removeCallbacksAndMessages(null)
 

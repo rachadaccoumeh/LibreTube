@@ -37,6 +37,7 @@ import com.github.libretube.helpers.ProxyHelper
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.player.SabrMediaSource
 import com.github.libretube.player.manifest.SabrManifest
+import com.github.libretube.repo.UserDataRepositoryHelper
 import com.github.libretube.util.DeArrowUtil
 import com.github.libretube.util.PlayingQueue
 import com.github.libretube.util.YoutubeHlsPlaylistParser
@@ -65,7 +66,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
      */
     private var streams: Streams? = null
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     /*
     Current job that's loading a new video (the value is null if no video is loading at the moment).
@@ -76,7 +77,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
                 Player.STATE_ENDED -> {
-                    if (!isTransitioning) playNextVideo()
+                    if (!isTransitioning) playNextVideo(relatedStreams = streams?.relatedStreams)
                 }
 
                 Player.STATE_IDLE -> {
@@ -89,11 +90,12 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     // waiting for the player to be ready since the video can't be claimed to be watched
                     // while it did not yet start actually, but did buffer only so far
                     if (PlayerHelper.watchHistoryEnabled) {
+                        val watchHistoryEntry = streams?.toStreamItem(videoId)
+                            ?.toWatchHistoryEntry(exoPlayer?.currentPosition) ?: return
+
                         scope.launch(Dispatchers.IO) {
-                            streams?.let { streams ->
-                                val watchHistoryItem =
-                                    streams.toStreamItem(videoId).toWatchHistoryItem(videoId)
-                                DatabaseHelper.addToWatchHistory(watchHistoryItem)
+                            runCatching {
+                                UserDataRepositoryHelper.userDataRepository.addToWatchHistory(watchHistoryEntry)
                             }
                         }
                     }
@@ -142,8 +144,8 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     MediaServiceRepository.instance.getStreams(videoId).let {
                         DeArrowUtil.deArrowStreams(it, videoId)
                     }
-                }  catch (e: Exception) {
-                    Log.w(TAG(), e.stackTraceToString())
+                } catch (e: Exception) {
+                    Log.e(TAG(), e.stackTraceToString())
                     toastFromMainDispatcher(e.localizedMessage.orEmpty())
                     return@withContext null
                 }
@@ -154,7 +156,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
                 PlayingQueue.updateCurrent(it)
 
                 if (!PlayingQueue.hasNext()) {
-                    PlayingQueue.updateQueue(it, playlistId, channelId, streams!!.relatedStreams)
+                    PlayingQueue.updateQueue(it, playlistId, channelId)
                 }
 
                 // update feed item with newer information, e.g. more up-to-date views
@@ -181,8 +183,12 @@ open class OnlinePlayerService : AbstractPlayerService() {
         if (seekToPositionMs != 0L) {
             exoPlayer?.seekTo(seekToPositionMs)
         } else if (watchPositionsEnabled) {
-            DatabaseHelper.getWatchPositionBlocking(videoId)?.let {
-                if (!DatabaseHelper.isVideoWatched(it, streams?.duration)) exoPlayer?.seekTo(it)
+            scope.launch(Dispatchers.IO) {
+                UserDataRepositoryHelper.userDataRepository.getFromWatchHistory(videoId)?.metadata?.positionMillis?.let {
+                    if (!DatabaseHelper.isVideoWatched(it, streams?.duration)) {
+                        withContext(Dispatchers.Main) { exoPlayer?.seekTo(it) }
+                    }
+                }
             }
         }
 
@@ -192,25 +198,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
             prepare()
         }
         startPaused = false
-    }
-
-    /**
-     * Plays the next video from the queue
-     */
-    private fun playNextVideo(nextId: String? = null) {
-        if (nextId == null) {
-            if (PlayingQueue.repeatMode == Player.REPEAT_MODE_ONE) {
-                exoPlayer?.seekTo(0)
-                return
-            }
-
-            if (!PlayerHelper.isAutoPlayEnabled(playlistId != null) || !shouldHandleAutoplay) return
-        }
-
-        val nextVideo = nextId ?: PlayingQueue.getNext() ?: return
-
-        // play new video on background
-        navigateVideo(nextVideo)
     }
 
     private suspend fun getSponsorBlockSegments(): List<Segment> {
@@ -284,11 +271,18 @@ open class OnlinePlayerService : AbstractPlayerService() {
                                 .buildUpon()
                                 .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
                                 .setCodecs(format.sampleMimeType)
-                                .setCueReplacementBehavior( subtitleParserFactory.getCueReplacementBehavior(format))
+                                .setCueReplacementBehavior(
+                                    subtitleParserFactory.getCueReplacementBehavior(
+                                        format
+                                    )
+                                )
                                 .build()
                         )
                     } catch (e: Exception) {
-                        Log.w(this::class.simpleName, "failed to set subtitle lazy-loading: ${e.stackTrace}")
+                        Log.w(
+                            this::class.simpleName,
+                            "failed to set subtitle lazy-loading: ${e.stackTrace}"
+                        )
                     }
                     progressiveMediaSourceFactory.createMediaSource(MediaItem.fromUri(it.url!!))
                 }.toList()
@@ -298,14 +292,12 @@ open class OnlinePlayerService : AbstractPlayerService() {
                 return
             }
             // DASH
-            streams.videoStreams.any { it.url?.startsWith("sabr://") != true } -> {
+            !streams.isLive && streams.videoStreams.any { it.url?.startsWith("sabr://") != true } -> {
                 Log.w(TAG(), "setStreamSource: using DASH for $videoId")
                 // only use the dash manifest generated by YT if either it's a livestream or no other source is available
                 val dashUri =
-                    if (streams.isLive && streams.dash != null) {
-                        ProxyHelper.rewriteUrlUsingProxyPreference(
-                            streams.dash
-                        ).toUri()
+                    if (streams.isLive && !streams.dash.isNullOrBlank()) {
+                            streams.dash.toUri()
                     } else {
                         PlayerHelper.createDashSource(streams.copy(videoStreams = streams.videoStreams.filter {
                             it.url?.startsWith("sabr://") != true
@@ -321,7 +313,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
 
                 val mediaItem = createMediaItem(
-                    ProxyHelper.rewriteUrlUsingProxyPreference(streams.hls).toUri(),
+                    streams.hls.toUri(),
                     MimeTypes.APPLICATION_M3U8,
                     streams
                 )

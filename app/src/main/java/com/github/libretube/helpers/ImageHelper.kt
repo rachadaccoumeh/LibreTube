@@ -94,14 +94,12 @@ object ImageHelper {
         // clear image to avoid loading issues at fast scrolling
         target.setImageBitmap(null)
 
-        val urlToLoad = ProxyHelper.rewriteUrlUsingProxyPreference(url)
-
         // only load online images if the data saver mode is disabled
         if (DataSaverMode.isEnabled(target.context)) {
-            if (urlToLoad.startsWith(HTTP_SCHEME) && !isCached(urlToLoad)) return
+            if (url.startsWith(HTTP_SCHEME) && !isCached(url)) return
         }
 
-        target.load(urlToLoad) {
+        target.load(url) {
             listener(
                 onSuccess = { _, _ ->
                     // set the background to white for transparent images
@@ -111,13 +109,18 @@ object ImageHelper {
         }
     }
 
-    suspend fun downloadImage(context: Context, url: String, path: Path) {
-        val bitmap = getImage(context, url) ?: return
-        withContext(Dispatchers.IO) {
+    /**
+     * Attempts to download and save the image located at the given url to the given path.
+     *
+     * @return whether the operation was successful
+     */
+    suspend fun downloadImage(context: Context, url: String, path: Path): Boolean {
+        val bitmap = getImage(context, url) ?: return false
+        return withContext(Dispatchers.IO) {
             context.contentResolver.openOutputStream(path.toAndroidUri())?.use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 25, it)
             }
-        }
+        } ?: false
     }
 
     suspend fun getImage(context: Context, url: String?): Bitmap? {

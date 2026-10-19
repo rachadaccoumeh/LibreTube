@@ -2,7 +2,6 @@ package com.github.libretube.helpers
 
 import android.util.Log
 import com.github.libretube.api.obj.Subtitle
-import com.github.libretube.helpers.ProxyHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -73,8 +72,7 @@ object TranscriptHelper {
                     continue
                 }
 
-                // Rewrite URL using proxy preference (same as player does for streams)
-                val url = ProxyHelper.rewriteUrlUsingProxyPreference(rawUrl)
+                val url = rawUrl
                 Log.i(TAG, "fetchTranscript: trying '${subtitle.code}' url=$url")
 
                 val request = Request.Builder().url(url).build()

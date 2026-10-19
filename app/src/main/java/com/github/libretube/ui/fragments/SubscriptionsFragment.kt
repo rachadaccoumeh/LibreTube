@@ -20,10 +20,13 @@ import com.github.libretube.databinding.FragmentSubscriptionsBinding
 import com.github.libretube.db.DatabaseHelper
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.extensions.toID
+import com.github.libretube.extensions.toastFromMainDispatcher
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.obj.SelectableOption
 import com.github.libretube.parcelable.PlayerData
+import com.github.libretube.repo.FeedRefresh
+import com.github.libretube.repo.UserDataRepositoryHelper
 import com.github.libretube.ui.adapters.VideoCardsAdapter
 import com.github.libretube.ui.base.DynamicLayoutManagerFragment
 import com.github.libretube.ui.models.SubscriptionsViewModel
@@ -44,11 +47,9 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
     private val viewModel: SubscriptionsViewModel by activityViewModels()
 
-    // -1: all
-    // -2: ungrouped
     private var selectedFilterGroup
         set(value) = PreferenceHelper.putInt(PreferenceKeys.SELECTED_CHANNEL_GROUP, value)
-        get() = PreferenceHelper.getInt(PreferenceKeys.SELECTED_CHANNEL_GROUP, -1)
+        get() = PreferenceHelper.getInt(PreferenceKeys.SELECTED_CHANNEL_GROUP, FILTER_GROUP_ALL)
 
     private var isAppBarFullyExpanded = true
 
@@ -107,7 +108,7 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         binding.subProgress.isVisible = true
 
         if (viewModel.videoFeed.value == null) {
-            viewModel.fetchFeed(requireContext(), forceRefresh = false)
+            viewModel.fetchFeed(requireContext(), FeedRefresh.Automatically)
         }
 
         // only restore the previous state (i.e. scroll position) the first time the feed is shown
@@ -155,7 +156,19 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         }
 
         binding.subRefresh.setOnRefreshListener {
-            viewModel.fetchFeed(requireContext(), forceRefresh = true)
+            viewModel.fetchFeed(
+                requireContext(),
+                when (selectedFilterGroup) {
+                    FILTER_GROUP_ALL -> FeedRefresh.All
+                    FILTER_GROUP_UNGROUPED -> viewModel.subscriptions.value?.let { subscriptions ->
+                        FeedRefresh.OnlySome(subscriptions.map { it.url.toID() })
+                    } ?: FeedRefresh.All // fallback if subscriptions weren't loaded yet
+                    else -> FeedRefresh.OnlySome(
+                        viewModel.groups.value?.getOrNull(selectedFilterGroup)
+                            ?.channels.orEmpty()
+                    )
+                }
+            )
         }
 
         binding.toggleSubs.isVisible = true
@@ -166,7 +179,8 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         }
 
         binding.channelGroups.setOnCheckedStateChangeListener { group, _ ->
-            selectedFilterGroup = group.children.indexOfFirst { it.id == group.checkedChipId } - 1 // 0th index is "all" button
+            selectedFilterGroup =
+                group.children.indexOfFirst { it.id == group.checkedChipId } - 1 // 0th index is "all" button
 
             lifecycleScope.launch {
                 showFeed(restoreScrollState = false)
@@ -192,8 +206,12 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         })
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val groups = DatabaseHolder.Database.subscriptionGroupsDao().getAll()
-                .sortedBy { it.index }
+            val groups = try {
+                UserDataRepositoryHelper.userDataRepository.getSubscriptionGroups()
+            } catch (e: Exception) {
+                context?.toastFromMainDispatcher(e.message.orEmpty())
+                return@launch
+            }
             viewModel.groups.postValue(groups)
         }
     }
@@ -269,15 +287,15 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
         val groups = viewModel.groups.value.orEmpty()
 
-        binding.chipAll.isChecked = selectedFilterGroup == -1
+        binding.chipAll.isChecked = selectedFilterGroup == FILTER_GROUP_ALL
         binding.chipAll.setOnLongClickListener {
-            lifecycleScope.launch { playByGroup(0) }
+            lifecycleScope.launch { playByGroup(FILTER_GROUP_ALL) }
             true
         }
 
-        binding.chipUngrouped.isChecked = selectedFilterGroup == -2
+        binding.chipUngrouped.isChecked = selectedFilterGroup == FILTER_GROUP_UNGROUPED
         binding.chipUngrouped.setOnLongClickListener {
-            lifecycleScope.launch { playByGroup(-1) }
+            lifecycleScope.launch { playByGroup(FILTER_GROUP_UNGROUPED) }
             true
         }
 
@@ -308,8 +326,8 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
     }
 
     private fun List<StreamItem>.filterByGroup(groupIndex: Int): List<StreamItem> {
-        if (groupIndex == -1) return this
-        if (groupIndex == -2) return filterUngroupedStreamItems(this)
+        if (groupIndex == FILTER_GROUP_ALL) return this
+        if (groupIndex == FILTER_GROUP_UNGROUPED) return filterUngroupedStreamItems(this)
 
         val group = viewModel.groups.value?.getOrNull(groupIndex)
         return filter {
@@ -395,5 +413,10 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
     fun removeItem(videoId: String) {
         feedAdapter.removeItemById(videoId)
+    }
+
+    companion object {
+        private const val FILTER_GROUP_UNGROUPED = -2
+        private const val FILTER_GROUP_ALL = -1
     }
 }

@@ -16,7 +16,6 @@ object PreferenceKeys {
     const val ORIENTATION = "orientation"
     const val NAVBAR_ITEMS = "navbar_items"
     const val START_FRAGMENT = "start_fragment"
-    const val UNLIMITED_SEARCH_HISTORY = "unlimited_search_history"
     const val AUDIO_ONLY_MODE = "audio_only_mode"
 
     // Appearance
@@ -33,10 +32,9 @@ object PreferenceKeys {
     const val SEARCH_SUGGESTIONS = "search_suggestions"
 
     // Instance
-    const val FETCH_INSTANCE = "selectInstance"
+    const val SYNC_SERVER_TYPE = "sync_server"
+    const val LIBRETUBE_SYNC_SERVER_URL = "libretube_sync_server_url"
     const val AUTH_INSTANCE = "selectAuthInstance"
-    const val AUTH_INSTANCE_TOGGLE = "auth_instance_toggle"
-    const val CUSTOM_INSTANCE = "customInstance"
     const val LOGIN_REGISTER = "login_register"
     const val LOGOUT = "logout"
     const val DELETE_ACCOUNT = "delete_account"
@@ -61,10 +59,7 @@ object PreferenceKeys {
     const val PLAYER_AUDIO_QUALITY = "player_audio_quality"
     const val PLAYER_AUDIO_QUALITY_MOBILE = "player_audio_quality_mobile"
     const val DEFAULT_SUBTITLE = "default_subtitle"
-    const val SKIP_BUTTONS = "skip_buttons"
     const val PLAYER_RESIZE_MODE = "current_player_resize_mode"
-    const val QUEUE_AUTO_INSERT_RELATED = "queue_insert_related_videos"
-    const val AUTOPLAY_PLAYLISTS = "autoplay_playlists"
     const val PLAYER_SWIPE_CONTROLS = "player_swipe_controls"
     const val PLAYER_PINCH_CONTROL = "player_pinch_control"
     const val CAPTIONS_SIZE = "captions_size"
@@ -101,23 +96,15 @@ object PreferenceKeys {
     const val SHOW_UPCOMING_IN_FEED = "show_upcoming_in_feed"
     const val SELECTED_FEED_FILTERS = "filter_feed"
     const val FEED_SORT_ORDER = "sort_oder_feed"
-    const val LOCAL_FEED_EXTRACTION = "local_feed_extraction"
     const val LAST_LOCAL_FEED_REFRESH_TIMESTAMP_MILLIS = "last_feed_refresh_timestamp_millis"
 
     // Advanced
     const val AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
     const val DATA_SAVER_MODE = "data_saver_mode_key"
     const val RESET_SETTINGS = "reset_settings"
-    const val CLEAR_SEARCH_HISTORY = "clear_search_history"
-    const val CLEAR_WATCH_HISTORY = "clear_watch_history"
-    const val CLEAR_WATCH_POSITIONS = "clear_watch_positions"
     const val SHARE_WITH_TIME_CODE = "share_with_time_code"
-    const val SELECTED_SHARE_HOST = "selected_share_host"
-    const val CLEAR_BOOKMARKS = "clear_bookmarks"
     const val EXTERNAL_DOWNLOAD_PROVIDER = "external_download_provider"
-    const val FULL_LOCAL_MODE = "full_local_mode"
     const val LOCAL_RYD = "local_return_youtube_dislikes"
-    const val LOCAL_STREAM_EXTRACTION = "local_stream_extraction"
     const val INCLUDE_TIMESTAMP_IN_BACKUP_FILENAME = "include_timestamp_in_filename"
 
     // History
@@ -136,12 +123,12 @@ object PreferenceKeys {
     // Internally saved data / not a preference
     const val ERROR_LOG = "error_log"
     const val AUTH_PREF_FILE = "auth"
-    const val IMAGE_PROXY_URL = "image_proxy_url"
     const val SELECTED_CHANNEL_GROUP = "selected_channel_group"
     const val SELECTED_DOWNLOAD_SORT_TYPE = "selected_download_sort_type"
     const val SELECTED_DOWNLOAD_PLAYLIST_SORT_TYPE = "selected_download_playlist_sort_type"
     const val LAST_SHOWN_INFO_MESSAGE_VERSION_CODE = "last_shown_info_message_version"
     const val PREFERENCE_VERSION = "PREFERENCE_VERSION"
+    const val WELCOME_ACTIVITY_FINISHED = "WELCOME_ACTIVITY_FINISHED"
 
     // use the helper methods at PreferenceHelper to access these
     const val LAST_USER_SEEN_FEED_TIME = "last_watched_feed_time"

@@ -65,13 +65,6 @@
             app:valueTo="60.0" />
 
         <SwitchPreferenceCompat
-            android:defaultValue="false"
-            android:icon="@drawable/ic_next"
-            android:summary="@string/skip_buttons_summary"
-            app:key="skip_buttons"
-            app:title="@string/skip_buttons" />
-
-        <SwitchPreferenceCompat
             android:disableDependentsState="true"
             android:icon="@drawable/ic_rotating_circle"
             android:summary="@string/autoRotatePlayer_summary"
@@ -133,22 +126,6 @@
             android:icon="@drawable/ic_caption"
             app:key="default_subtitle"
             app:title="@string/default_subtitle_language" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="@string/queue">
-
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:icon="@drawable/ic_list"
-            android:title="@string/queue_insert_related_videos"
-            app:key="queue_insert_related_videos" />
-
-        <SwitchPreferenceCompat
-            android:defaultValue="false"
-            android:summary="@string/autoplay_playlists_summary"
-            android:title="@string/autoplay_playlists"
-            app:key="autoplay_playlists" />
 
     </PreferenceCategory>
 

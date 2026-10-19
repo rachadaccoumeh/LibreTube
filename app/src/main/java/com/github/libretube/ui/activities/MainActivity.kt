@@ -1,5 +1,6 @@
 package com.github.libretube.ui.activities
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -7,6 +8,7 @@ import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.ScrollView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,7 +21,10 @@ import androidx.core.os.bundleOf
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.allViews
 import androidx.core.view.children
+import androidx.core.view.doOnPreDraw
+import androidx.core.view.get
 import androidx.core.view.isNotEmpty
+import androidx.core.view.size
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -65,6 +70,7 @@ import com.github.libretube.ui.preferences.BackupRestoreSettings
 import com.github.libretube.ui.preferences.BackupRestoreSettings.Companion.FILETYPE_ANY
 import com.github.libretube.util.UpdateChecker
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.navigation.NavigationBarMenuView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -86,7 +92,6 @@ class MainActivity : AbstractPlayerHostActivity() {
     private val searchViewModel: SearchViewModel by viewModels()
     private val downloadViewModel: DownloadsViewModel by viewModels()
     private val playlistViewModel: PlaylistViewModel by viewModels()
-
     // registering for activity results is only possible, this here should have been part of
     // PlaylistOptionsBottomSheet instead if Android allowed us to
     private var playlistExportFormat: ImportFormat = ImportFormat.NEWPIPE
@@ -109,6 +114,14 @@ class MainActivity : AbstractPlayerHostActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // show welcome activity on first app startup (or after the update to prospectively v32)
+        if (!PreferenceHelper.getBoolean(PreferenceKeys.WELCOME_ACTIVITY_FINISHED, false)) {
+            val welcomeIntent = Intent(this, WelcomeActivity::class.java)
+            startActivity(welcomeIntent)
+            finish()
+            return
+        }
 
         // show noInternet Activity if no internet available on app startup
         if (!NetworkHelper.isNetworkAvailable(this)) {
@@ -210,6 +223,9 @@ class MainActivity : AbstractPlayerHostActivity() {
         }
 
         binding.bottomNav.setOnItemSelectedListener {
+            if (resources.configuration.smallestScreenWidthDp >= MINIMUM_SCREEN_SIZE_TABLET) {
+                fixBottomNavSelectionIndicatorWidth()
+            }
             navigateToBottomSelectedItem(it)
         }
 
@@ -270,6 +286,27 @@ class MainActivity : AbstractPlayerHostActivity() {
         loadIntentData()
 
         showUserInfoDialogIfNeeded()
+    }
+
+    /**
+     * Works around a bug in the material design library that causes the
+     * selection indicator to be too small on large-screen devices.
+     */
+    private fun fixBottomNavSelectionIndicatorWidth() {
+        val menuView =
+            binding.bottomNav.getChildAt(0) as? ViewGroup ?: return
+
+        val selectedId = binding.bottomNav.selectedItemId
+        val selectedIndex = (0 until binding.bottomNav.menu.size)
+            .firstOrNull { binding.bottomNav.menu[it].itemId == selectedId }
+            ?: return
+
+        val selectedChild = menuView.getChildAt(selectedIndex) ?: return
+        selectedChild.doOnPreDraw {
+            // trigger a re-draw of the highlight indicator
+            @SuppressLint("RestrictedApi")
+            (menuView as NavigationBarMenuView).itemActiveIndicatorEnabled = true
+        }
     }
 
     /**
@@ -421,43 +458,33 @@ class MainActivity : AbstractPlayerHostActivity() {
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                if (!shouldOpenSuggestions) return true
-
-                // Downloads and Playlists search locally — don't block them
-                if (currentSearchType == SearchType.DOWNLOADS || currentSearchType == SearchType.PLAYLIST) {
-                    when (currentSearchType) {
-                        SearchType.DOWNLOADS -> {
-                            downloadViewModel.setQuery(newText)
-                        }
-                        SearchType.PLAYLIST -> {
-                            playlistViewModel.setQuery(newText)
-                        }
-                        else -> {}
-                    }
-                    return true
-                }
-
-                // Prevent navigation when search view is collapsed
-                if (searchView.isIconified ||
-                    binding.bottomNav.menu.children.any {
-                        it.itemId == navController.currentDestination?.id
-                    }
-                ) {
-                    return true
-                }
-
-                // prevent malicious navigation when the search view is getting collapsed
-                val destIds = listOf(
-                    R.id.searchResultFragment,
-                    R.id.channelFragment,
-                    R.id.playlistFragment
-                )
-                if (navController.currentDestination?.id in destIds && newText == null) {
-                    return false
-                }
-
                 when (currentSearchType) {
+                    // downloads and playlists are searched locally
+                    SearchType.DOWNLOADS -> downloadViewModel.setQuery(newText)
+                    SearchType.PLAYLIST -> playlistViewModel.setQuery(newText)
+
                     SearchType.ONLINE -> {
+                        if (!shouldOpenSuggestions) return true
+
+                        // Prevent navigation when search view is collapsed
+                        if (searchView.isIconified ||
+                            binding.bottomNav.menu.children.any {
+                                it.itemId == navController.currentDestination?.id
+                            }
+                        ) {
+                            return true
+                        }
+
+                        // prevent malicious navigation when the search view is getting collapsed
+                        val destIds = listOf(
+                            R.id.searchResultFragment,
+                            R.id.channelFragment,
+                            R.id.playlistFragment
+                        )
+                        if (navController.currentDestination?.id in destIds && newText == null) {
+                            return false
+                        }
+
                         if (navController.currentDestination?.id != R.id.searchFragment) {
                             navController.navigate(
                                 R.id.searchFragment,
@@ -762,5 +789,9 @@ class MainActivity : AbstractPlayerHostActivity() {
 
         searchView.clearFocus()
         return true
+    }
+
+    companion object {
+        const val MINIMUM_SCREEN_SIZE_TABLET = 600
     }
 }

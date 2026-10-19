@@ -6,11 +6,11 @@ import com.github.libretube.helpers.PreferenceHelper
 
 class PipedAccountFeedRepository : FeedRepository {
     override suspend fun getFeed(
-        forceRefresh: Boolean,
+        refresh: FeedRefresh,
         onProgressUpdate: (FeedProgress) -> Unit
     ): List<StreamItem> {
         val token = PreferenceHelper.getToken()
 
-        return RetrofitInstance.authApi.getFeed(token)
+        return RetrofitInstance.pipedAuthApi.getFeed(token)
     }
 }

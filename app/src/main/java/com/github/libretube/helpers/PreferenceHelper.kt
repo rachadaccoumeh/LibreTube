@@ -147,6 +147,16 @@ object PreferenceHelper {
             remove("disable_video_image_proxy")
         },
         PreferenceMigration(7, 8) {
+            remove("local_stream_extraction")
+            remove("full_local_mode")
+
+            val usesPipedAuth = getBoolean("auth_instance_toggle", false)
+            if (usesPipedAuth) putString(PreferenceKeys.SYNC_SERVER_TYPE, "piped")
+            remove("auth_instance_toggle")
+
+            remove("local_feed_extraction") // local feed extraction is default now unless Piped is used
+        },
+        PreferenceMigration(7, 8) {
             remove("image_cache_size")
             remove("max_parallel_downloads")
         },
@@ -156,6 +166,21 @@ object PreferenceHelper {
             remove("behavior_when_minimized")
             remove("show_stream_thumbnails")
             remove("watch_history_size")
+        },
+        PreferenceMigration(9, 10) {
+            remove("autoplay_playlists")
+            remove("queue_insert_related_videos")
+        },
+        PreferenceMigration(10, 11) {
+            remove("skip_buttons")
+        },
+        PreferenceMigration(11, 12) {
+            remove("youtube_data_source")
+            remove("selectInstance")
+        },
+        PreferenceMigration(12, 13) {
+            remove("selected_share_host")
+            remove("unlimited_search_history")
         }
     )
 

@@ -12,12 +12,14 @@ import com.github.libretube.api.obj.Playlists
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.db.DatabaseHelper
-import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.PlaylistBookmark
+import com.github.libretube.enums.WatchHistoryStatus
 import com.github.libretube.extensions.runSafely
 import com.github.libretube.extensions.updateIfChanged
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PreferenceHelper
+import com.github.libretube.repo.FeedRefresh
+import com.github.libretube.repo.UserDataRepositoryHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -86,7 +88,7 @@ class HomeViewModel : ViewModel() {
         val region = PreferenceHelper.getTrendingRegion(context)
         val category = PreferenceHelper.getString(
             PreferenceKeys.TRENDING_CATEGORY,
-            TrendingCategory.LIVE.name
+            TrendingCategory.GAMING.name
         ).let { TrendingCategory.valueOf(it) }
 
         runSafely(
@@ -114,7 +116,7 @@ class HomeViewModel : ViewModel() {
     private suspend fun loadBookmarks() {
         runSafely(
             onSuccess = { newBookmarks -> bookmarks.updateIfChanged(newBookmarks) },
-            ioBlock = { DatabaseHolder.Database.playlistBookmarkDao().getAll() }
+            ioBlock = { UserDataRepositoryHelper.userDataRepository.getPlaylistBookmarks() }
         )
     }
 
@@ -134,16 +136,21 @@ class HomeViewModel : ViewModel() {
     }
 
     private suspend fun loadWatchingFromDB(): List<StreamItem> {
-        val videos = DatabaseHelper.getWatchHistoryPage(1, 20)
+        val (videos, _) = runCatching {
+            UserDataRepositoryHelper.userDataRepository.getWatchHistory(
+                20, null,
+                WatchHistoryStatus.ALL
+            )
+        }.getOrElse { Pair(emptyList(), null) }
 
         return DatabaseHelper
-            .filterUnwatched(videos.map { it.toStreamItem() })
+            .filterUnwatched(videos.map { it.video })
     }
 
     private suspend fun tryLoadFeed(subscriptionsViewModel: SubscriptionsViewModel): List<StreamItem> {
         // use cached feed if available, otherwise load feed from API/database
         val feed = subscriptionsViewModel.videoFeed.value ?: run {
-            SubscriptionHelper.getFeed(forceRefresh = false).also {
+            SubscriptionHelper.getFeed(FeedRefresh.Automatically).also {
                 subscriptionsViewModel.videoFeed.postValue(it)
             }
         }

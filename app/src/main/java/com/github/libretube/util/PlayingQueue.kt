@@ -4,6 +4,7 @@ import androidx.media3.common.Player
 import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.obj.StreamItem
+import com.github.libretube.enums.PlaylistType
 import com.github.libretube.extensions.move
 import com.github.libretube.extensions.runCatchingIO
 import com.github.libretube.extensions.toID
@@ -112,8 +113,6 @@ object PlayingQueue {
 
     fun size() = queue.size
 
-    fun isLast() = currentIndex() == size() - 1
-
     fun currentIndex(): Int = synchronized(queue) {
         return queue.indexOfFirst {
             it.url?.toID() == currentStream?.url?.toID()
@@ -188,8 +187,8 @@ object PlayingQueue {
         }
     }
 
-    fun insertPlaylist(playlistId: String, newCurrentStream: StreamItem?) = runCatchingIO {
-        val playlist = PlaylistsHelper.getPlaylist(playlistId)
+    fun insertPlaylist(playlistId: String, playlistType: PlaylistType, newCurrentStream: StreamItem?) = runCatchingIO {
+        val playlist = PlaylistsHelper.getPlaylist(playlistId, playlistType)
         val isMainList = newCurrentStream != null
         addToQueueAsync(playlist.relatedStreams, newCurrentStream, isMainList)
         if (playlist.nextpage == null) return@runCatchingIO
@@ -224,26 +223,15 @@ object PlayingQueue {
         streamItem: StreamItem,
         playlistId: String?,
         channelId: String?,
-        relatedStreams: List<StreamItem> = emptyList()
     ) {
         updateCurrent(streamItem)
 
         if (playlistId != null) {
-            insertPlaylist(playlistId, streamItem)
+            val playlistType = PlaylistsHelper.getPlaylistType(playlistId)
+            insertPlaylist(playlistId, playlistType, streamItem)
         } else if (channelId != null) {
             insertChannel(channelId, streamItem)
-        } else if (relatedStreams.isNotEmpty()) {
-            insertRelatedStreams(relatedStreams)
         }
-    }
-
-    fun insertRelatedStreams(streams: List<StreamItem>) {
-        if (!PlayerHelper.autoInsertRelatedVideos) return
-
-        // don't add new videos to the queue if the user chose to repeat only the current queue
-        if (isLast() && repeatMode == Player.REPEAT_MODE_ALL) return
-
-        add(*streams.filter { !it.isLive }.toTypedArray(), skipExisting = true)
     }
 }
 

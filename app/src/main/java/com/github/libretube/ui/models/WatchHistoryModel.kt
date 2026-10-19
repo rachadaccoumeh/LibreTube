@@ -1,81 +1,128 @@
 package com.github.libretube.ui.models
 
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.asFlow
-import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
+import com.github.libretube.api.obj.WatchHistoryEntry
 import com.github.libretube.constants.PreferenceKeys
-import com.github.libretube.db.DatabaseHelper
 import com.github.libretube.db.DatabaseHolder
-import com.github.libretube.db.obj.WatchHistoryItem
+import com.github.libretube.enums.WatchHistoryStatus
+import com.github.libretube.extensions.toID
 import com.github.libretube.helpers.PreferenceHelper
+import com.github.libretube.repo.UserDataRepositoryHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+private sealed class WatchHistoryPage {
+    object First : WatchHistoryPage()
+    class HasNext(val nextCursor: Any?) : WatchHistoryPage()
+    object AllLoaded : WatchHistoryPage()
+}
 
 class WatchHistoryModel : ViewModel() {
-    private val watchHistory = MutableLiveData<List<WatchHistoryItem>>()
+    private val _filteredWatchHistory = MutableLiveData<List<WatchHistoryEntry>>()
+    val filteredWatchHistory: LiveData<List<WatchHistoryEntry>> = _filteredWatchHistory
 
-    private var currentPage = 1
-    private var isLoading = false
+    private var nextHistoryPage: WatchHistoryPage = WatchHistoryPage.First
+    private var fetchJob: Job? = null
+    private val downloadedVideoIds = mutableSetOf<String>()
+    private val watchPositions = mutableMapOf<String, Long?>()
 
     private val selectedStatus = MutableStateFlow(
-        PreferenceHelper.getInt(PreferenceKeys.SELECTED_HISTORY_STATUS_FILTER, 0)
+        WatchHistoryStatus.entries.getOrNull(
+            PreferenceHelper.getInt(
+                PreferenceKeys.SELECTED_HISTORY_STATUS_FILTER,
+                WatchHistoryStatus.ALL.ordinal
+            )
+        ) ?: WatchHistoryStatus.ALL
     )
-
-    val filteredWatchHistory =
-        combine(watchHistory.asFlow(), selectedStatus) { history, _ -> history }
-            .flowOn(Dispatchers.IO).map { history -> history.filter { it.shouldIncludeByFilters() } }
-            .asLiveData()
 
     var selectedStatusFilter
         get() = selectedStatus.value
         set(value) {
-            PreferenceHelper.putInt(PreferenceKeys.SELECTED_HISTORY_STATUS_FILTER, value)
+            PreferenceHelper.putInt(PreferenceKeys.SELECTED_HISTORY_STATUS_FILTER, value.ordinal)
             selectedStatus.value = value
         }
 
-    private suspend fun WatchHistoryItem.shouldIncludeByFilters(): Boolean {
-        // no watch position filter
-        if (selectedStatusFilter == 0) return true
-
-        return when (selectedStatusFilter) {
-            1 -> DatabaseHelper.filterByWatchStatus(this)
-            2 -> DatabaseHelper.filterByWatchStatus(this, false)
-            else -> throw IllegalArgumentException()
-        }
-    }
-
-    fun fetchNextPage() = viewModelScope.launch(Dispatchers.IO) {
-        if (isLoading) return@launch
-        isLoading = true
-
-        val newHistory = withContext(Dispatchers.IO) {
-            DatabaseHelper.getWatchHistoryPage(currentPage, HISTORY_PAGE_SIZE)
-        }
-
-        isLoading = false
-        currentPage++
-
-        watchHistory.postValue(
-            watchHistory.value.orEmpty().toMutableList().apply {
-                addAll(newHistory)
+    init {
+        viewModelScope.launch {
+            selectedStatus.collect {
+                fetchJob?.cancel()
+                nextHistoryPage = WatchHistoryPage.First
+                _filteredWatchHistory.value = emptyList()
+                fetchNextPage()
             }
-        )
+        }
     }
 
-    fun removeFromHistory(watchHistoryItem: WatchHistoryItem) =
-        viewModelScope.launch(Dispatchers.IO) {
-            DatabaseHolder.Database.watchHistoryDao().delete(watchHistoryItem)
+    fun fetchNextPage() {
+        if (nextHistoryPage == WatchHistoryPage.AllLoaded) return
+        if (fetchJob?.isActive == true) return
 
-            watchHistory.postValue(
-                watchHistory.value.orEmpty().filter { it != watchHistoryItem }
-            )
+        fetchJob = viewModelScope.launch(Dispatchers.IO) {
+            val (watchHistoryItems, nextCursor) = try {
+                UserDataRepositoryHelper.userDataRepository.getWatchHistory(
+                    pageSize = HISTORY_PAGE_SIZE,
+                    watchedState = selectedStatus.value,
+                    cursor = (nextHistoryPage as? WatchHistoryPage.HasNext)?.nextCursor
+                )
+            } catch (_: Exception) {
+                // TODO: display errors to user
+                return@launch
+            }
+            val downloaded = DatabaseHolder.Database.downloadDao()
+                .areVideosDownloaded(watchHistoryItems.map { it.video.url!!.toID() })
+
+            watchHistoryItems.forEachIndexed { index, item ->
+                val videoId = item.video.url!!.toID()
+                if (downloaded[index]) {
+                    downloadedVideoIds += videoId
+                } else {
+                    downloadedVideoIds -= videoId
+                }
+                watchPositions[videoId] = item.metadata.positionMillis
+            }
+            nextHistoryPage = if (nextCursor == null) {
+                WatchHistoryPage.AllLoaded
+            } else {
+                WatchHistoryPage.HasNext(nextCursor)
+            }
+            _filteredWatchHistory.postValue(_filteredWatchHistory.value.orEmpty() + watchHistoryItems)
+        }
+    }
+
+    fun isVideoDownloaded(videoId: String) = videoId in downloadedVideoIds
+
+    fun getWatchPosition(videoId: String) = watchPositions[videoId]
+
+    fun onWatchStatusChanged(item: WatchHistoryEntry, isVideoWatched: Boolean) {
+        val videoId = item.video.url!!.toID()
+
+        if (isVideoWatched) {
+            watchPositions[videoId] = Long.MAX_VALUE
+        } else {
+            watchPositions -= videoId
+        }
+
+        if (!isVideoWatched || selectedStatus.value.isWatched == false) {
+            _filteredWatchHistory.value = _filteredWatchHistory.value.orEmpty() - item
+        }
+    }
+
+    fun removeFromHistory(watchHistoryEntry: WatchHistoryEntry) =
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                UserDataRepositoryHelper.userDataRepository.removeFromWatchHistory(
+                    watchHistoryEntry.metadata.videoId
+                )
+
+                _filteredWatchHistory.postValue(
+                    _filteredWatchHistory.value.orEmpty() - watchHistoryEntry
+                )
+            }
         }
 
     companion object {

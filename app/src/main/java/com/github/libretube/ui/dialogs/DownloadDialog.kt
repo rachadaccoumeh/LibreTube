@@ -3,12 +3,12 @@ package com.github.libretube.ui.dialogs
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
-import android.text.InputFilter
 import android.text.format.Formatter
 import android.util.Log
 import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
@@ -24,7 +24,6 @@ import com.github.libretube.db.obj.DownloadItem
 import com.github.libretube.enums.FileType
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.getWhileDigit
-import com.github.libretube.extensions.sha256Sum
 import com.github.libretube.extensions.toastFromMainDispatcher
 import com.github.libretube.helpers.DownloadHelper
 import com.github.libretube.helpers.PlayerHelper
@@ -48,6 +47,7 @@ class DownloadDialog : DialogFragment() {
         val binding = DialogDownloadBinding.inflate(layoutInflater)
 
         fetchAvailableSources(binding)
+        showVideoAlreadyDownloadedWarning(binding)
 
         return MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.download)
@@ -60,6 +60,16 @@ class DownloadDialog : DialogFragment() {
                     onDownloadConfirm.invoke()
                 }
             }
+    }
+
+    private fun showVideoAlreadyDownloadedWarning(binding: DialogDownloadBinding) {
+        lifecycleScope.launch {
+            val alreadyDownloaded = withContext(Dispatchers.IO) {
+                DatabaseHolder.Database.downloadDao().getDownloadById(videoId)
+            } != null
+
+            binding.alreadyDownloadedCard.isVisible = alreadyDownloaded
+        }
     }
 
     private fun fetchAvailableSources(binding: DialogDownloadBinding) {
