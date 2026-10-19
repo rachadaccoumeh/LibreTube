@@ -20,6 +20,7 @@ import android.view.KeyEvent
 import android.view.PixelCopy
 import android.view.SurfaceView
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +41,9 @@ import androidx.core.os.postDelayed
 import androidx.core.view.WindowCompat
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
+import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.commit
@@ -205,10 +208,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
     /** Constraints of the expanded (non-fullscreen) player, saved before fullscreen changes them. */
     private var normalStartSet: ConstraintSet? = null
+    private var normalRootTopPadding = 0
     private var savedCutoutMode = 0
 
     /** True while the fullscreen layout change animates, so the minimize listeners ignore it. */
-    private var isFullscreenAnimating = false
 
     /**
      * Receiver for all actions in the PiP mode
@@ -460,6 +463,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 )
             }
         }
+        normalRootTopPadding = binding.root.paddingTop
 
 
         val playerData = requireArguments().parcelable<PlayerData>(IntentData.playerData)!!
@@ -650,7 +654,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 endId: Int,
                 progress: Float
             ) {
-                if (_binding == null || isFullscreenAnimating) return
+                if (_binding == null) return
 
                 baseActivity.setPlayerContainerProgress(progress.absoluteValue)
                 disableController()
@@ -661,12 +665,6 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             override fun onTransitionCompleted(motionLayout: MotionLayout?, currentId: Int) {
                 if (_binding == null) return
-                if (isFullscreenAnimating) {
-                    // only the fullscreen layout changed, the player was not minimized or expanded
-                    handler.post { finishFullscreenAnimation() }
-                    return
-                }
-
                 if (currentId == transitionStartId) {
                     commonPlayerViewModel.isMiniPlayerVisible.value = false
                     // re-enable captions
@@ -982,7 +980,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         commonPlayerViewModel.setSheetExpand(null)
 
-        openOrCloseFullscreenDialog(true)
+        // a rotation changes the whole layout, so only animate portrait to portrait
+        openOrCloseFullscreenDialog(true, animate = portrait && isPortraitScreen())
 
         binding.player.updateMarginsByFullscreenMode()
     }
@@ -997,7 +996,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             baseActivity.requestedOrientation = baseActivity.screenOrientationPref
         }
 
-        openOrCloseFullscreenDialog(false)
+        openOrCloseFullscreenDialog(false, animate = isPortraitScreen())
 
         binding.player.updateMarginsByFullscreenMode()
 
@@ -1034,6 +1033,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
      * The player view is not moved to another window: moving a SurfaceView to another window
      * destroys its surface, which caused a black flash and a stutter on every fullscreen change.
      */
+    private fun isPortraitScreen() =
+        resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
     private fun openOrCloseFullscreenDialog(open: Boolean, animate: Boolean = true) {
         val motionLayout = binding.playerMotionLayout
         val normalSet = normalStartSet ?: ConstraintSet().apply {
@@ -1049,17 +1051,31 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
 
+        // the status bar is hidden in fullscreen, so its padding would show the screen behind
+        binding.root.updatePadding(top = if (open) 0 else normalRootTopPadding)
+
         // swiping down must not minimize the player while it is fullscreen
         motionLayout.getTransition(R.id.yt_transition)?.isEnabled = !open
 
         if (animate) {
-            isFullscreenAnimating = true
-            motionLayout.updateStateAnimate(R.id.start, targetSet, FULLSCREEN_ANIMATION_DURATION)
-            // safety net in case the motion layout doesn't report the end of the animation
-            handler.postDelayed({ finishFullscreenAnimation() }, FULLSCREEN_ANIMATION_DURATION + 200L)
-        } else {
-            motionLayout.updateState(R.id.start, targetSet)
+            // FLIP: change the layout once, then slide only the video frame from its old place.
+            // Animating the layout itself re-measures the related videos list on every frame.
+            val videoFrame = binding.player.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
+            val oldTop = IntArray(2).also { videoFrame.getLocationOnScreen(it) }[1]
+            binding.player.doOnNextLayout {
+                val newTop = IntArray(2).also { videoFrame.getLocationOnScreen(it) }[1]
+                // the frame may slide outside the player's bounds while the player shrinks
+                binding.player.clipChildren = false
+                videoFrame.translationY = (oldTop - newTop).toFloat()
+                videoFrame.animate()
+                    .translationY(0f)
+                    .setInterpolator(DecelerateInterpolator())
+                    .setDuration(FULLSCREEN_ANIMATION_DURATION.toLong())
+                    .withEndAction { _binding?.player?.clipChildren = true }
+                    .start()
+            }
         }
+        motionLayout.updateState(R.id.start, targetSet)
 
         val window = requireActivity().window
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -1073,18 +1089,6 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
         window.toggleSystemBars(WindowInsetsCompat.Type.systemBars(), showBars = !open)
-    }
-
-    /**
-     * [MotionLayout.updateStateAnimate] runs a temporary transition that ends at progress 1 and
-     * stays active, which breaks the minimize transition and the swipe gestures afterwards.
-     */
-    private fun finishFullscreenAnimation() {
-        if (!isFullscreenAnimating || _binding == null) return
-        // still flagged as animating, so the transition listener ignores this state reset
-        binding.playerMotionLayout.setTransition(R.id.yt_transition)
-        isFullscreenAnimating = false
-        binding.player.requestLayout()
     }
 
     override fun onPause() {

@@ -18,6 +18,7 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
+import androidx.core.view.doOnPreDraw
 import com.github.libretube.R
 
 class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeSet? = null) :
@@ -37,6 +38,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     private val swipeDownOnScrollEndListener = mutableListOf<(Boolean) -> Unit>()
     private val gestureDetector = GestureDetector(context, Listener())
     private val scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
+    private var pinchScale = 1f
 
     // all views that form the mini player card and move together while it is dragged
     private val miniPlayerViews by lazy {
@@ -111,41 +113,60 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
 
     private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val card = viewToDetectTouch
+            if (card.width == 0) return false
             val margin = MINI_PLAYER_MARGIN_DP.dpToPx()
-            // start from the stored width: the view's width only updates after the next layout
-            val currentWidth = miniPlayerWidth ?: viewToDetectTouch.width
-            miniPlayerWidth = (currentWidth * detector.scaleFactor).toInt()
-                .coerceIn(MINI_PLAYER_MIN_WIDTH_DP.dpToPx(), width - 2 * margin)
-            applyMiniPlayerBounds()
+            val minScale = MINI_PLAYER_MIN_WIDTH_DP.dpToPx() / card.width.toFloat()
+            val maxScale = (width - 2 * margin) / card.width.toFloat()
+            pinchScale = (pinchScale * detector.scaleFactor).coerceIn(minScale, maxScale)
+
+            // scale only visually while pinching, a relayout per step stutters
+            val pivotX = card.left + card.width / 2f
+            val pivotY = card.top + card.height / 2f
+            miniPlayerViews.forEach {
+                it.pivotX = pivotX - it.left
+                it.pivotY = pivotY - it.top
+                it.scaleX = pinchScale
+                it.scaleY = pinchScale
+            }
             return true
         }
     }
 
     /**
-     * Saves the position the mini player card was dragged to, or closes the mini player
-     * if the card was dragged mostly off the bottom of the screen.
+     * Saves the size and position the mini player card was pinched or dragged to, or closes
+     * the mini player if the card was dragged mostly off the bottom of the screen.
      */
     private fun commitMiniPlayerPosition() {
         val card = viewToDetectTouch
         val wasDragged = card.translationX != 0f || card.translationY != 0f
-        if (!wasDragged) return
+        val wasResized = pinchScale != 1f
+        if (!wasDragged && !wasResized) return
 
-        val dismissed = card.y + card.height / 2 > height
-        val x = card.x.toInt()
-        val y = card.y.toInt()
-        miniPlayerViews.forEach {
-            it.translationX = 0f
-            it.translationY = 0f
-        }
+        val newWidth = (card.width * pinchScale).toInt()
+        val centerX = card.x + card.width / 2f
+        val centerY = card.y + card.height / 2f
+        pinchScale = 1f
 
-        if (dismissed) {
+        if (!wasResized && centerY > height) {
+            resetMiniPlayerTransforms()
             swipeDownListener.forEach { it.invoke() }
             return
         }
 
-        miniPlayerX = x
-        miniPlayerY = y
+        miniPlayerWidth = newWidth
+        miniPlayerX = (centerX - newWidth / 2f).toInt()
+        miniPlayerY = (centerY - newWidth * 9 / 16 / 2f).toInt()
         applyMiniPlayerBounds()
+        // keep the temporary transform until the new layout is ready, to avoid a one frame jump
+        card.doOnPreDraw { resetMiniPlayerTransforms() }
+    }
+
+    private fun resetMiniPlayerTransforms() = miniPlayerViews.forEach {
+        it.translationX = 0f
+        it.translationY = 0f
+        it.scaleX = 1f
+        it.scaleY = 1f
     }
 
     /**
@@ -245,7 +266,10 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                     }
                 }
 
-                if (!startedMinimized && !shouldInterceptTouchEvent && isTouchDownInsideHitArea) {
+                // in fullscreen the minimize transition is off: leave the swipe to the player,
+                // which uses swipe down to exit fullscreen
+                val canMinimize = getTransition(R.id.yt_transition)?.isEnabled != false
+                if (!startedMinimized && !shouldInterceptTouchEvent && isTouchDownInsideHitArea && canMinimize) {
                     val deltaY = event.y - touchInitialY
 
                     // swipe down detected
