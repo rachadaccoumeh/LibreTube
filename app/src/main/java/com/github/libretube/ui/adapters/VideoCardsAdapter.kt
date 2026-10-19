@@ -149,6 +149,7 @@ class VideoCardsAdapter(
                 NavigationHelper.navigateVideo(root.context, PlayerData(videoId))
             }
 
+            moreButton.setOnClickListener { root.performLongClick() }
             root.setOnLongClickListener {
                 fragmentManager.setFragmentResultListener(
                     VideoOptionsBottomSheet.VIDEO_OPTIONS_SHEET_REQUEST_KEY,

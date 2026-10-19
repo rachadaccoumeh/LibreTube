@@ -112,6 +112,7 @@ class SearchResultsAdapter(
             val videoId = item.url.toID()
             val activity = (root.context as BaseActivity)
             val fragmentManager = activity.supportFragmentManager
+            moreButton.setOnClickListener { root.performLongClick() }
             root.setOnLongClickListener {
                 fragmentManager.setFragmentResultListener(
                     VideoOptionsBottomSheet.VIDEO_OPTIONS_SHEET_REQUEST_KEY,

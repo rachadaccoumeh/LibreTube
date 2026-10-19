@@ -93,6 +93,7 @@ class PlaylistAdapter(
 
             val activity = (root.context as BaseActivity)
             val fragmentManager = activity.supportFragmentManager
+            moreButton.setOnClickListener { root.performLongClick() }
             root.setOnLongClickListener {
                 fragmentManager.setFragmentResultListener(
                     VIDEO_OPTIONS_SHEET_REQUEST_KEY,

@@ -165,6 +165,7 @@ class DownloadsAdapter(
                 }
             }
 
+            moreButton.setOnClickListener { root.performLongClick() }
             root.setOnLongClickListener {
                 val activity = root.context as BaseActivity
                 val fragmentManager = activity.supportFragmentManager
