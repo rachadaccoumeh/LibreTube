@@ -15,7 +15,6 @@ class FullscreenGestureAnimationController(
     private val videoFrameView: View,
     private val onSwipeUpCompleted: () -> Unit,
     private val onSwipeDownCompleted: () -> Unit,
-    private val onSwipeDownScrollCompleted: () -> Unit = onSwipeUpCompleted,
 ) {
     enum class SwipeDirection { UP, DOWN, NONE }
 
@@ -24,9 +23,6 @@ class FullscreenGestureAnimationController(
     private var swipeDirection = SwipeDirection.NONE
     private var swipeStartY = 0f
     private var currentSwipeDistance = 0f
-    // Separate state for the scroll-down-to-portrait-fullscreen gesture
-    private var isScrollSwipeInProgress = false
-    private var scrollSwipeDistance = 0f
 
     fun onSwipe(distanceY: Float, positionY: Float) {
         if (!isSwipeInProgress) {
@@ -74,52 +70,6 @@ class FullscreenGestureAnimationController(
                 // Do nothing
                 SwipeDirection.NONE -> {}
             }
-        }
-    }
-
-    /**
-     * Drive the animation from the scroll-down gesture (swipe down on description area
-     * to enter portrait fullscreen). Scales the video frame live with the finger drag.
-     */
-    fun onSwipeDownScroll(dragDistance: Float) {
-        if (playerView.isFullscreen()) return
-        if (!isScrollSwipeInProgress) {
-            isScrollSwipeInProgress = true
-            playerView.hideController()
-            videoFrameView.pivotX = videoFrameView.width / 2f
-            videoFrameView.pivotY = videoFrameView.height.toFloat()
-        }
-        scrollSwipeDistance = dragDistance.coerceAtLeast(0f)
-        val cappedDistance = scrollSwipeDistance.coerceAtMost(SWIPE_DISTANCE_THRESHOLD.toFloat())
-        val scale = 1f + (cappedDistance * SCALE_FACTOR)
-        videoFrameView.scaleX = scale
-        videoFrameView.scaleY = scale
-    }
-
-    /**
-     * Complete the scroll-down gesture. Animates the scale back to 1 and triggers
-     * portrait fullscreen if the threshold was met.
-     */
-    fun onSwipeDownScrollEnd(enterFullscreen: Boolean) {
-        if (!isScrollSwipeInProgress) return
-
-        // no bounce when fullscreen opens: the player grows into fullscreen at the same time
-        videoFrameView.animate()
-            .scaleX(1f)
-            .scaleY(1f)
-            .setInterpolator(if (enterFullscreen) DecelerateInterpolator() else OvershootInterpolator(0.8f))
-            .setDuration(250)
-            .withEndAction {
-                videoFrameView.pivotY = videoFrameView.height / 2f
-                videoFrameView.pivotX = videoFrameView.width / 2f
-            }
-            .start()
-
-        isScrollSwipeInProgress = false
-        scrollSwipeDistance = 0f
-
-        if (enterFullscreen) {
-            onSwipeDownScrollCompleted()
         }
     }
 
@@ -180,8 +130,6 @@ class FullscreenGestureAnimationController(
         shouldHandleSwipe = false
         currentSwipeDistance = 0f
         swipeDirection = SwipeDirection.NONE
-        isScrollSwipeInProgress = false
-        scrollSwipeDistance = 0f
     }
 
     companion object {

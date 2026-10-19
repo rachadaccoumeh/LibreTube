@@ -19,6 +19,7 @@ import android.os.PowerManager
 import android.view.KeyEvent
 import android.view.PixelCopy
 import android.view.SurfaceView
+import android.graphics.Color
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import androidx.activity.BackEventCompat
@@ -74,6 +75,7 @@ import com.github.libretube.enums.PlayerCommand
 import com.github.libretube.enums.PlayerEvent
 import com.github.libretube.enums.SbSkipOptions
 import com.github.libretube.enums.ShareObjectType
+import com.github.libretube.extensions.dpToPx
 import com.github.libretube.extensions.formatShort
 import com.github.libretube.extensions.parcelable
 import com.github.libretube.extensions.serializableExtra
@@ -134,6 +136,8 @@ import kotlin.math.absoluteValue
 
 private const val FULLSCREEN_ANIMATION_DURATION = 250
 private const val MAX_OFFLINE_SUGGESTIONS = 30
+private const val PULL_DOWN_FADE_DISTANCE = 160f
+private const val PULL_DOWN_RESET_DURATION = 200L
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback {
@@ -709,7 +713,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             if (PlayerHelper.fullscreenGesturesEnabled &&
                 commonPlayerViewModel.isFullscreen.value != true
             ) {
-                binding.player.onSwipeDownScrollProgress(dragDistance)
+                updatePullDownToFullscreen(dragDistance)
             }
         }
 
@@ -717,7 +721,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             if (PlayerHelper.fullscreenGesturesEnabled &&
                 commonPlayerViewModel.isFullscreen.value != true
             ) {
-                binding.player.onSwipeDownScrollEnd(enterFullscreen)
+                finishPullDownToFullscreen(enterFullscreen)
             }
         }
 
@@ -1034,6 +1038,49 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
      * The player view is not moved to another window: moving a SurfaceView to another window
      * destroys its surface, which caused a black flash and a stutter on every fullscreen change.
      */
+    /**
+     * YouTube-like pull down on the video info: the page follows the finger while the video info
+     * fades out over a black backdrop.
+     */
+    private fun updatePullDownToFullscreen(dragDistance: Float) {
+        val drag = dragDistance.coerceAtLeast(0f)
+        val progress = (drag / PULL_DOWN_FADE_DISTANCE.dpToPx()).coerceAtMost(1f)
+
+        binding.root.setBackgroundColor(Color.argb((progress * 255).toInt(), 0, 0, 0))
+        binding.playerScrollView.translationY = drag
+        binding.playerScrollView.alpha = 1f - progress
+        // the video moves slower than the finger, towards the center where fullscreen puts it
+        binding.mainContainer.translationY = drag / 2
+        binding.player.translationY = drag / 2
+    }
+
+    private fun finishPullDownToFullscreen(enterFullscreen: Boolean) {
+        if (enterFullscreen) {
+            // the fullscreen slide starts from the video's current (dragged) position
+            toggleFullscreen(portrait = true)
+            resetPullDownToFullscreen()
+            return
+        }
+
+        listOf(binding.mainContainer, binding.player).forEach {
+            it.animate().translationY(0f).setDuration(PULL_DOWN_RESET_DURATION).start()
+        }
+        binding.playerScrollView.animate()
+            .translationY(0f)
+            .alpha(1f)
+            .setDuration(PULL_DOWN_RESET_DURATION)
+            .withEndAction { _binding?.let { resetPullDownToFullscreen() } }
+            .start()
+    }
+
+    private fun resetPullDownToFullscreen() {
+        binding.root.background = null
+        binding.playerScrollView.translationY = 0f
+        binding.playerScrollView.alpha = 1f
+        binding.mainContainer.translationY = 0f
+        binding.player.translationY = 0f
+    }
+
     private fun isPortraitScreen() =
         resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 

@@ -196,10 +196,6 @@ class CustomExoPlayerView(
                     fullscreenTransitionTimeMs = System.currentTimeMillis()
                     playerCallback.toggleFullscreen()
                 }
-            },
-            onSwipeDownScrollCompleted = {
-                fullscreenTransitionTimeMs = System.currentTimeMillis()
-                playerCallback.toggleFullscreen(portrait = true)
             }
         )
     }
@@ -1310,24 +1306,6 @@ class CustomExoPlayerView(
         fullscreenGestureAnimationController.onSwipeEnd()
         gestureViewBinding.brightnessControlView.isGone = true
         gestureViewBinding.volumeControlView.isGone = true
-    }
-
-    /**
-     * Drive the fullscreen gesture animation from the scroll-down gesture (portrait fullscreen).
-     * Called with the raw drag distance so the video frame scales live with the finger.
-     */
-    fun onSwipeDownScrollProgress(dragDistance: Float) {
-        if (!PlayerHelper.fullscreenGesturesEnabled) return
-        if (isFullscreen()) return
-        fullscreenGestureAnimationController.onSwipeDownScroll(dragDistance)
-    }
-
-    /**
-     * Complete the scroll-down gesture. Triggers portrait fullscreen if the threshold was met.
-     */
-    fun onSwipeDownScrollEnd(enterFullscreen: Boolean) {
-        if (!PlayerHelper.fullscreenGesturesEnabled) return
-        fullscreenGestureAnimationController.onSwipeDownScrollEnd(enterFullscreen)
     }
 
     override fun onPinch(scaleFactor: Float, panX: Float, panY: Float) {
