@@ -16,7 +16,9 @@ import java.io.IOException
 @UnstableApi
 class SabrDataSource(
     private val sabrClient: SabrClient,
-) : BaseDataSource(true) {
+// not a network source: segments are often served from memory, which would inflate the
+// bandwidth estimate, so SabrClient reports the real HTTP transfers to the bandwidth meter instead
+) : BaseDataSource(false) {
     private var data: CompositeBuffer? = null
 
     class Factory(

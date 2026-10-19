@@ -167,8 +167,15 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
             args.containsKey(PlayerCommand.SET_RESOLUTION.name) -> {
                 trackSelector?.updateParameters {
                     val resolution = args.getInt(PlayerCommand.SET_RESOLUTION.name)
-                    setMinVideoSize(Int.MIN_VALUE, resolution)
-                    setMaxVideoSize(Int.MAX_VALUE, resolution)
+                    if (resolution == Int.MAX_VALUE) {
+                        // auto quality: no limits, so the adaptive track selection can switch qualities
+                        // (a minimum height of Int.MAX_VALUE matches no track and locks one fixed quality)
+                        clearVideoSizeConstraints()
+                        setMinVideoSize(0, 0)
+                    } else {
+                        setMinVideoSize(Int.MIN_VALUE, resolution)
+                        setMaxVideoSize(Int.MAX_VALUE, resolution)
+                    }
                 }
             }
 

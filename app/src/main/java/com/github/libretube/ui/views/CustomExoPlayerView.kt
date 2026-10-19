@@ -1080,7 +1080,7 @@ class CustomExoPlayerView(
         val player = player as? MediaController ?: return
 
         val transformedResolution =
-            if (!isSelectedByUser && playerCallback.isVideoShort()) {
+            if (!isSelectedByUser && playerCallback.isVideoShort() && resolution != Int.MAX_VALUE) {
                 ceil(resolution * 16.0 / 9.0).toInt()
             } else {
                 resolution

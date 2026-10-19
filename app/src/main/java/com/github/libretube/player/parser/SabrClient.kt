@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.core.net.toUri
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.PlaceholderDataSource
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import com.github.libretube.LibreTubeApp
 import com.github.libretube.api.poToken.PoTokenGenerator
@@ -40,6 +43,8 @@ import video_streaming.StreamerContextOuterClass.StreamerContext
 import video_streaming.StreamerContextOuterClass.StreamerContext.SabrContext
 import video_streaming.UmpPartId.UMPPartId
 import video_streaming.VideoPlaybackAbrRequestOuterClass.VideoPlaybackAbrRequest
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.time.Instant
 import kotlin.math.max
 
@@ -441,11 +446,42 @@ class SabrClient private constructor(
         lastRequestMs = Instant.now().toEpochMilli()
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
+            response.close()
             Log.w(TAG, "fetchStreamData: Failed to fetch data (${response.code})")
             throw Exception("HTTP request failed: ${response.code}")
         }
 
-        return response.body.bytes()
+        val bytes = readAndMeasure(response.body.byteStream())
+        val tookMs = Instant.now().toEpochMilli() - lastRequestMs!!
+        Log.w(TAG, "fetchStreamData: ${bytes.size} bytes in ${tookMs}ms, video=${videoFormat?.stream?.itag}, audio=${audioFormat?.stream?.itag}, bwEstimate=${bandwidthEstimator.bitrateEstimate}")
+        return bytes
+    }
+
+    /**
+     * Reads the response body and reports the transfer to the bandwidth meter, which drives
+     * the adaptive quality selection of the player.
+     */
+    private fun readAndMeasure(input: InputStream): ByteArray {
+        val dataSpec = DataSpec(url.toUri())
+        val source = PlaceholderDataSource.INSTANCE
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+
+        bandwidthEstimator.onTransferInitializing(source, dataSpec, true)
+        bandwidthEstimator.onTransferStart(source, dataSpec, true)
+        try {
+            input.use {
+                while (true) {
+                    val read = it.read(buffer)
+                    if (read == -1) break
+                    output.write(buffer, 0, read)
+                    bandwidthEstimator.onBytesTransferred(source, dataSpec, true, read)
+                }
+            }
+        } finally {
+            bandwidthEstimator.onTransferEnd(source, dataSpec, true)
+        }
+        return output.toByteArray()
     }
 
     /**

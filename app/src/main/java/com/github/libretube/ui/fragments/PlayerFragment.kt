@@ -695,6 +695,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                     baseActivity.requestOrientationChange()
                 }
 
+                // MotionLayout only re-lays out its direct children, so the nested video surface
+                // can keep its mini player size and be drawn small in the top left corner
+                binding.player.requestLayout()
                 updateMaxSheetHeight()
             }
         })
