@@ -11,7 +11,7 @@ Read when: checking what's in flight. Format, modes and workflow:
 ## When possible
 
 - [ ] task-005 — feed: keep mark-as-seen after sync, button to jump to first new video, mark-as-seen from top — rachad, 2026-10-19
-- [ ] task-006 — floating mini player: move, resize, stays across screens — rachad, 2026-10-19 — in progress, in-app floating card
+- [ ] task-006 — floating mini player: move, resize, stays across screens — rachad, 2026-10-19 — code done, phone test open
 - [ ] task-007 — random order for suggestions under a downloaded video — rachad, 2026-10-19
 - [ ] task-008 — 3-dot menu on video cards like YouTube (keep long press) — rachad, 2026-10-19 — code done, phone test open
 - [ ] task-009 — free pinch zoom and pan on the video — rachad, 2026-10-19 — code done, phone test open

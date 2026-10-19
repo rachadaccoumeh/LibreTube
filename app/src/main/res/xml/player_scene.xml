@@ -42,32 +42,34 @@
         <Constraint android:id="@+id/doubleTapOverlay" />
     </ConstraintSet>
 
+    <!-- floating mini player card: position and width are changed at runtime by
+     SingleViewTouchableMotionLayout when the user drags or pinches the card -->
     <ConstraintSet android:id="@+id/end">
         <Constraint
             android:id="@+id/main_container"
-            android:layout_width="match_parent"
-            android:layout_height="54dp"
+            android:layout_width="200dp"
+            android:layout_height="0dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="12dp"
             motion:layout_constraintBottom_toBottomOf="parent"
-            motion:layout_constraintEnd_toEndOf="parent"
-            motion:layout_constraintHorizontal_bias="0.5"
-            motion:layout_constraintStart_toStartOf="parent"
-            motion:layout_constraintTop_toTopOf="parent"
-            motion:layout_constraintVertical_bias="1.0" />
+            motion:layout_constraintDimensionRatio="16:9"
+            motion:layout_constraintEnd_toEndOf="parent" />
         <Constraint
             android:id="@+id/player"
-            android:layout_width="100dp"
+            android:layout_width="0dp"
             android:layout_height="0dp"
             motion:layout_constraintBottom_toBottomOf="@id/main_container"
+            motion:layout_constraintEnd_toEndOf="@id/main_container"
             motion:layout_constraintStart_toStartOf="@id/main_container"
             motion:layout_constraintTop_toTopOf="@id/main_container" />
         <Constraint
             android:id="@+id/close_imageView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="4dp"
             android:alpha="1"
             android:visibility="visible"
-            motion:layout_constraintBottom_toBottomOf="@id/main_container"
             motion:layout_constraintEnd_toEndOf="@id/main_container"
             motion:layout_constraintTop_toTopOf="@id/main_container" />
         <Constraint
@@ -76,29 +78,35 @@
             android:layout_height="wrap_content"
             android:alpha="1"
             android:visibility="visible"
-            motion:layout_constraintBottom_toBottomOf="@+id/close_imageView"
-            motion:layout_constraintEnd_toStartOf="@+id/close_imageView"
-            motion:layout_constraintTop_toTopOf="@+id/close_imageView" />
+            motion:layout_constraintBottom_toBottomOf="@id/main_container"
+            motion:layout_constraintEnd_toEndOf="@id/main_container"
+            motion:layout_constraintStart_toStartOf="@id/main_container"
+            motion:layout_constraintTop_toTopOf="@id/main_container" />
         <Constraint
             android:id="@+id/title_textView"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="8dp"
-            android:alpha="1"
-            android:visibility="visible"
-            motion:layout_constraintBottom_toBottomOf="@+id/play_imageView"
-            motion:layout_constraintEnd_toStartOf="@+id/play_imageView"
-            motion:layout_constraintStart_toEndOf="@+id/player"
-            motion:layout_constraintTop_toTopOf="@+id/play_imageView" />
+            android:alpha="0"
+            android:visibility="gone"
+            motion:layout_constraintBottom_toBottomOf="@id/main_container"
+            motion:layout_constraintEnd_toEndOf="@id/main_container"
+            motion:layout_constraintStart_toStartOf="@id/main_container" />
         <Constraint
             android:id="@+id/miniPlayerProgress"
-            android:layout_width="match_parent"
-            android:layout_height="2dp"
+            android:layout_width="0dp"
+            android:layout_height="3dp"
             android:alpha="1"
-            android:elevation="8dp"
             android:visibility="visible"
             motion:layout_constraintBottom_toBottomOf="@+id/main_container"
             motion:layout_constraintEnd_toEndOf="@+id/main_container"
             motion:layout_constraintStart_toStartOf="@+id/main_container" />
+        <!-- the description and related videos sit below/next to the card and must not show
+         or catch touches while minimized -->
+        <Constraint android:id="@+id/player_scrollView">
+            <PropertySet android:visibility="invisible" />
+        </Constraint>
+        <Constraint android:id="@+id/related_container">
+            <PropertySet android:visibility="invisible" />
+        </Constraint>
     </ConstraintSet>
 </MotionScene>
