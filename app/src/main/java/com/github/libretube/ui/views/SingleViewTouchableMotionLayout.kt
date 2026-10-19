@@ -9,7 +9,6 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
-import android.widget.ScrollView
 import kotlin.math.abs
 import com.github.libretube.extensions.dpToPx
 import androidx.constraintlayout.motion.widget.MotionLayout
@@ -19,6 +18,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.doOnPreDraw
+import androidx.core.widget.NestedScrollView
 import com.github.libretube.R
 
 class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeSet? = null) :
@@ -51,7 +51,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         ).mapNotNull { findViewById<View>(it) }
     }
 
-    private val scrollView by lazy { findViewById<ScrollView>(R.id.player_scrollView) }
+    private val scrollView by lazy { findViewById<NestedScrollView>(R.id.player_scrollView) }
 
     private var startedMinimized = false
     private var touchInitialX = 0f

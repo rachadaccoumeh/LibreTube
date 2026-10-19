@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     app:layoutDescription="@xml/player_scene">
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/player_scrollView"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -171,7 +171,7 @@
 
         </LinearLayout>
 
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/main_container"

@@ -238,12 +238,8 @@ class PlayerGestureController(activity: BaseActivity, private val listener: Play
                 return true
             }
 
-            // In portrait fullscreen, allow swipe down from anywhere to exit fullscreen
-            if (isFullscreen && orientation == Configuration.ORIENTATION_PORTRAIT) {
-                listener.onSwipeCenterScreen(distanceY, e2.y)
-                return true
-            }
-
+            // the left and right sides control brightness and volume in fullscreen; when those
+            // gestures are disabled, the listener falls back to the center (exit) gesture
             when {
                 e1.x < width * LEFT_AREA_VIEW_PERCENTAGE -> {
                     if (isFullscreen) listener.onSwipeLeftScreen(distanceY, e2.y)

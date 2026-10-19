@@ -133,6 +133,7 @@ import kotlin.math.absoluteValue
 
 
 private const val FULLSCREEN_ANIMATION_DURATION = 250
+private const val MAX_OFFLINE_SUGGESTIONS = 30
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback {
@@ -1101,8 +1102,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             // disable the autoplay countdown while the screen is off or when PiP is not enabled
             setAutoPlayCountdownEnabled(false)
 
-            // disable loading the video track while screen is off or when PiP is not enabled
-            setVideoTrackTypeDisabled(true)
+            // disable loading the video track only if playback continues in the background:
+            // a paused video keeps its track, so unlocking shows the frame and resumes instantly
+            val keepsPlaying = ::playerController.isInitialized && playerController.isPlaying &&
+                !PlayerHelper.pausePlayerOnScreenOffEnabled
+            if (keepsPlaying) setVideoTrackTypeDisabled(true)
         }
 
         // pause player if screen off or app is put the background, except when
@@ -1464,6 +1468,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                     .filter { it.download.videoId != videoId }
                     // random order, so the same downloads are not always suggested first
                     .shuffled()
+                    // the list lays out all its items at once, so keep it short
+                    .take(MAX_OFFLINE_SUGGESTIONS)
                     .map { it.download.toStreamItem() }
             }
         } else {
