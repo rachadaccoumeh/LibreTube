@@ -198,6 +198,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/back_to_top"
+                style="?attr/floatingActionButtonSmallSecondaryStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:contentDescription="@string/back_to_top"
+                android:rotation="180"
+                android:src="@drawable/ic_arrow_downward"
+                android:tooltipText="@string/back_to_top"
+                android:visibility="gone"
+                android:layout_gravity="bottom|start" />
         </androidx.coordinatorlayout.widget.CoordinatorLayout>
     </com.github.libretube.ui.views.CustomSwipeToRefresh>
 </RelativeLayout>

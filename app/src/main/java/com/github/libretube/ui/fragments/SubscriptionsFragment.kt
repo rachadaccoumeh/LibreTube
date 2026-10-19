@@ -27,6 +27,7 @@ import com.github.libretube.obj.SelectableOption
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.repo.FeedRefresh
 import com.github.libretube.repo.UserDataRepositoryHelper
+import com.github.libretube.ui.extensions.setupBackToTopButton
 import com.github.libretube.ui.adapters.VideoCardsAdapter
 import com.github.libretube.ui.base.DynamicLayoutManagerFragment
 import com.github.libretube.ui.models.SubscriptionsViewModel
@@ -104,6 +105,9 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         setupSortAndFilter()
 
         binding.subFeed.adapter = feedAdapter
+        binding.subFeed.setupBackToTopButton(binding.backToTop) {
+            binding.subscriptionsAppBar.setExpanded(true, true)
+        }
 
         // Check if the AppBarLayout is fully expanded
         binding.subscriptionsAppBar.addOnOffsetChangedListener { _, verticalOffset ->

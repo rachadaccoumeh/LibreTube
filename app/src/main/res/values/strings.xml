@@ -602,6 +602,7 @@
     <string name="tooltip_unlocked">Unlock player</string>
     <string name="tooltip_sponsorblock">Toggle SponsorBlock</string>
     <string name="tooltip_options">Options</string>
+    <string name="back_to_top">Back to top</string>
     <string name="tooltip_minimize">Minimize</string>
     <string name="tooltip_fullscreen">Fullscreen</string>
     <string name="tooltip_close">Close</string>

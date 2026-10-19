@@ -28,6 +28,7 @@ import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.parcelable.PlayerData
 
 import com.github.libretube.repo.UserDataRepositoryHelper
+import com.github.libretube.ui.extensions.setupBackToTopButton
 import com.github.libretube.ui.adapters.WatchHistoryAdapter
 import com.github.libretube.ui.base.DynamicLayoutManagerFragment
 import com.github.libretube.ui.extensions.addOnBottomReachedListener
@@ -88,6 +89,7 @@ class WatchHistoryFragment : DynamicLayoutManagerFragment(R.layout.fragment_watc
         })
 
         binding.watchHistoryRecView.adapter = watchHistoryAdapter
+        binding.watchHistoryRecView.setupBackToTopButton(binding.backToTop)
 
         // manually restore the recyclerview state due to https://github.com/material-components/material-components-android/issues/3473
         binding.watchHistoryRecView.addOnScrollListener(object : RecyclerView.OnScrollListener() {

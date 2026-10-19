@@ -47,6 +47,7 @@ import com.github.libretube.obj.DownloadStatus
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.receivers.DownloadReceiver
 import com.github.libretube.services.DownloadService
+import com.github.libretube.ui.extensions.setupBackToTopButton
 import com.github.libretube.ui.adapters.DownloadPlaylistAdapter
 import com.github.libretube.ui.adapters.DownloadsAdapter
 import com.github.libretube.ui.base.DynamicLayoutManagerFragment
@@ -245,6 +246,7 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                 }
             )
         binding.downloadsRecView.adapter = adapter
+        binding.downloadsRecView.setupBackToTopButton(binding.backToTop)
 
         val sortOptions = DownloadSortingOrder.entries.map { getString(it.stringId) }
         binding.sortType.text = sortOptions[selectedSortType]

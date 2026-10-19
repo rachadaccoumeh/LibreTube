@@ -2,6 +2,7 @@ package com.github.libretube.ui.extensions
 
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 fun RecyclerView.addOnBottomReachedListener(
     prefetchDistance: Int = 0,
@@ -27,4 +28,22 @@ fun RecyclerView.addOnBottomReachedListener(
             }
         }
     })
+}
+
+/**
+ * Shows [button] once the list is scrolled down by more than one screen and scrolls back to the
+ * top when it is tapped. [onClick] runs after the scroll, e.g. to expand a collapsed app bar.
+ */
+fun RecyclerView.setupBackToTopButton(button: FloatingActionButton, onClick: () -> Unit = {}) {
+    button.hide()
+    addOnScrollListener(object : RecyclerView.OnScrollListener() {
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            if (recyclerView.computeVerticalScrollOffset() > recyclerView.height) button.show() else button.hide()
+        }
+    })
+    button.setOnClickListener {
+        scrollToPosition(0)
+        button.hide()
+        onClick()
+    }
 }
