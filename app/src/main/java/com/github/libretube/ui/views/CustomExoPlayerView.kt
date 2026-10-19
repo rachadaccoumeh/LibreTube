@@ -1330,20 +1330,37 @@ class CustomExoPlayerView(
         fullscreenGestureAnimationController.onSwipeDownScrollEnd(enterFullscreen)
     }
 
-    override fun onZoom() {
+    override fun onPinch(scaleFactor: Float, panX: Float, panY: Float) {
         if (!PlayerHelper.pinchGestureEnabled) return
-        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        val surface = videoSurfaceView ?: return
 
-        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            subtitleView?.setBottomPaddingFraction(SUBTITLE_BOTTOM_PADDING_FRACTION)
+        val scale = (surface.scaleX * scaleFactor).coerceIn(MIN_PINCH_SCALE, MAX_PINCH_SCALE)
+        surface.scaleX = scale
+        surface.scaleY = scale
+
+        // keep the video edges outside the visible area while panning
+        val maxPanX = surface.width * (scale - 1).coerceAtLeast(0f) / 2
+        val maxPanY = surface.height * (scale - 1).coerceAtLeast(0f) / 2
+        surface.translationX = (surface.translationX + panX).coerceIn(-maxPanX, maxPanX)
+        surface.translationY = (surface.translationY + panY).coerceIn(-maxPanY, maxPanY)
+    }
+
+    override fun onPinchEnd() {
+        val surface = videoSurfaceView ?: return
+        // pinching below the normal size means "show the whole video again"
+        if (surface.scaleX < 1f) {
+            resetPinchZoom()
+            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            subtitleView?.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
         }
     }
 
-    override fun onMinimize() {
-        if (!PlayerHelper.pinchGestureEnabled) return
-        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-
-        subtitleView?.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+    private fun resetPinchZoom() {
+        videoSurfaceView?.animate()
+            ?.scaleX(1f)?.scaleY(1f)
+            ?.translationX(0f)?.translationY(0f)
+            ?.setDuration(PINCH_RESET_DURATION)
+            ?.start()
     }
 
     override fun onLongPress() {
@@ -1381,6 +1398,9 @@ class CustomExoPlayerView(
     }
 
     override fun onFullscreenChange(isFullscreen: Boolean) {
+        // the player size changes, so a pinch zoom and pan would no longer fit
+        resetPinchZoom()
+
         if (isFullscreen) {
             if (PlayerHelper.swipeGestureEnabled) {
                 brightnessHelper.restoreSavedBrightness()
@@ -1515,6 +1535,9 @@ class CustomExoPlayerView(
         private const val UPDATE_POSITION_TOKEN = "updatePosition"
 
         private const val SUBTITLE_BOTTOM_PADDING_FRACTION = 0.158f
+        private const val MIN_PINCH_SCALE = 0.7f
+        private const val MAX_PINCH_SCALE = 4f
+        private const val PINCH_RESET_DURATION = 200L
         private const val ANIMATION_DURATION = 100L
         private const val AUTO_HIDE_CONTROLLER_DELAY = 2000L
         private val LANDSCAPE_MARGIN_HORIZONTAL = 20f.dpToPx()

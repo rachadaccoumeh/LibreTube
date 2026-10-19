@@ -109,23 +109,28 @@ class PlayerGestureController(activity: BaseActivity, private val listener: Play
     }
 
     private inner class ScaleGestureListener : ScaleGestureDetector.OnScaleGestureListener {
-        var scaleFactor = 1f
+        private var lastFocusX = 0f
+        private var lastFocusY = 0f
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            scaleFactor *= detector.scaleFactor
+            listener.onPinch(
+                detector.scaleFactor,
+                detector.focusX - lastFocusX,
+                detector.focusY - lastFocusY
+            )
+            lastFocusX = detector.focusX
+            lastFocusY = detector.focusY
             return true
         }
 
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            lastFocusX = detector.focusX
+            lastFocusY = detector.focusY
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
-            when {
-                scaleFactor < 0.8 -> listener.onMinimize()
-                scaleFactor > 1.2 -> listener.onZoom()
-            }
-            scaleFactor = 1f
+            listener.onPinchEnd()
         }
     }
 

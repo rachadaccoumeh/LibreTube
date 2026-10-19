@@ -18,9 +18,13 @@ interface PlayerGestureOptions {
 
     fun onSwipeEnd()
 
-    fun onZoom()
+    /**
+     * Called continuously during a pinch: [scaleFactor] is relative to the previous call,
+     * [panX] and [panY] are the movement of the gesture's focus point since the previous call.
+     */
+    fun onPinch(scaleFactor: Float, panX: Float, panY: Float)
 
-    fun onMinimize()
+    fun onPinchEnd()
 
     fun onFullscreenChange(isFullscreen: Boolean)
 
