@@ -180,6 +180,7 @@
 
     <LinearLayout
         android:id="@+id/bottom_bar"
+        android:clipChildren="false"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -322,6 +323,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
+            android:clipChildren="false"
             android:translationZ="10dp">
 
             <com.github.libretube.ui.views.ChapterTimeBar
@@ -329,6 +331,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:paddingTop="6dp"
+                android:translationY="6.5dp"
                 app:bar_gravity="bottom"
                 app:bar_height="3dp"
                 app:played_color="@color/player_timeline_red"
