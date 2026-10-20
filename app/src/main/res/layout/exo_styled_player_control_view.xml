@@ -318,6 +318,9 @@
 
         </LinearLayout>
 
+        <!-- the time bar draws its bar half a scrubber (8dp) inside each edge and 6.5dp above its
+             bottom: the negative margins and the translation put it on the full-width bottom edge,
+             exactly where the progress line is drawn while the controls are hidden -->
         <LinearLayout
             android:id="@+id/progress_bar"
             android:layout_width="match_parent"
@@ -330,6 +333,7 @@
                 android:id="@+id/exo_progress"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:layout_marginHorizontal="-8dp"
                 android:paddingTop="6dp"
                 android:translationY="6.5dp"
                 app:bar_gravity="bottom"
