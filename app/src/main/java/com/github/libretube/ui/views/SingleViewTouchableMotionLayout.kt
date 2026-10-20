@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
 import android.util.AttributeSet
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -160,9 +161,14 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         miniPlayerWidth = newWidth
         miniPlayerX = (centerX - newWidth / 2f).toInt()
         miniPlayerY = (centerY - newWidth * 9 / 16 / 2f).toInt()
+        val releasedY = card.y
         applyMiniPlayerBounds()
         // keep the temporary transform until the new layout is ready, to avoid a one frame jump
-        card.doOnPreDraw { resetMiniPlayerTransforms() }
+        card.doOnPreDraw {
+            resetMiniPlayerTransforms()
+            // diagnostic for a card that moves down after release; remove once fixed
+            Log.w(TAG, "mini player released at y=$releasedY, placed at y=${card.y}, container y=${(parent as? View)?.y}")
+        }
     }
 
     private fun resetMiniPlayerTransforms() = miniPlayerViews.forEach {
@@ -198,13 +204,14 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             val statusBarHeight = ViewCompat.getRootWindowInsets(this)
                 ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
             val minY = (statusBarHeight - location[1] + margin).coerceAtLeast(margin)
-            val maxX = (width - cardWidth - margin).coerceAtLeast(margin)
+            // the card may be parked mostly off the left or right side, a part stays to drag it back
+            val peekWidth = cardWidth / MINI_PLAYER_PEEK_FRACTION
             val controlsHeight = miniControls?.layoutParams?.height?.coerceAtLeast(0) ?: 0
             val maxY = (height - cardHeight - controlsHeight - margin).coerceAtLeast(minY)
 
             set.clear(cardId, ConstraintSet.END)
             set.clear(cardId, ConstraintSet.BOTTOM)
-            set.connect(cardId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, x.coerceIn(margin, maxX))
+            set.connect(cardId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, x.coerceIn(peekWidth - cardWidth, width - peekWidth))
             set.connect(cardId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, y.coerceIn(minY, maxY))
         }
 
@@ -371,6 +378,8 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         private const val MINI_PLAYER_MARGIN_DP = 12f
         private const val MINI_PLAYER_MIN_WIDTH_DP = 140f
         private const val MINI_PLAYER_DEFAULT_WIDTH_DP = 200f
+        private const val MINI_PLAYER_PEEK_FRACTION = 6
+        private const val TAG = "MiniPlayer"
 
         // kept for the app's lifetime so the next video's mini player opens at the same place
         private var miniPlayerWidth: Int? = null

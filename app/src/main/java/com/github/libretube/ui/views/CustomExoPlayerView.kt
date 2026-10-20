@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
+import android.graphics.drawable.ShapeDrawable
+import android.graphics.drawable.shapes.OvalShape
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,6 +16,9 @@ import android.text.format.DateUtils
 import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.view.Window
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -85,6 +91,7 @@ import com.github.libretube.ui.sheets.StatsSheet
 import com.github.libretube.ui.tools.SleepTimer
 import com.github.libretube.util.PlayingQueue
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.ceil
 
 @SuppressLint("ClickableViewAccessibility")
@@ -110,6 +117,15 @@ class CustomExoPlayerView(
     private lateinit var seekBarListener: TimeBar.OnScrubListener
     private var scrubPositionMs = 0L
     private val timelineRed = ContextCompat.getColor(context, R.color.player_timeline_red)
+
+    // outside fullscreen the timeline is the thin line on the video's bottom edge; its dot hangs half
+    // below the video, so it is drawn in the parent's overlay instead of being clipped by this view
+    private val progressDot = ShapeDrawable(OvalShape()).apply { paint.color = timelineRed }
+    private var progressDotHost: ViewGroup? = null
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var lineTouch = false
+    private var lineScrubbing = false
+    private var lineTouchStartX = 0f
     private var fullscreenGestureAnimationController: FullscreenGestureAnimationController
     private var chaptersBottomSheet: ChaptersBottomSheet? = null
     private var scrubbingTimeBar = false
@@ -1248,20 +1264,100 @@ class CustomExoPlayerView(
             )
         binding.timeLeft.text = "-${DateUtils.formatElapsedTime(timeLeft)}"
 
-        // YouTube-like thin progress line while the controls are hidden (not in fullscreen and
-        // not in the mini player, which has its own progress bar)
-        // the line turns red while the controls are shown; the time bar then only draws its dot on it
-        backgroundBinding.videoProgressLine.apply {
-            isVisible = useController && !isFullscreen()
-            val durationMs = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
-            val positionMs = if (scrubbingTimeBar) scrubPositionMs else player?.currentPosition ?: 0
-            progress = if (durationMs == null) 0 else (positionMs * max / durationMs).toInt()
-            val color = if (isControllerFullyVisible) timelineRed else Color.WHITE
-            if (progressTintList?.defaultColor != color) progressTintList = ColorStateList.valueOf(color)
-        }
+        updateProgressLine()
 
         runnableHandler.postDelayed(100, UPDATE_POSITION_TOKEN, this::updateCurrentPosition)
     }
+
+    /**
+     * YouTube-like thin progress line on the video's bottom edge (not in fullscreen and not in the
+     * mini player, which has its own progress bar). It is white while the controls are hidden and
+     * turns red with a dot while the controls are shown or the line is dragged.
+     */
+    private fun updateProgressLine() {
+        val showLine = useController && !isFullscreen()
+        val durationMs = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
+        val positionMs = if (scrubbingTimeBar || lineScrubbing) scrubPositionMs else player?.currentPosition ?: 0
+        val fraction = if (durationMs == null) 0f else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+        val active = isControllerFullyVisible || lineScrubbing
+
+        val line = backgroundBinding.videoProgressLine
+        line.isVisible = showLine
+        line.progress = (fraction * line.max).toInt()
+        val color = if (active) timelineRed else Color.WHITE
+        if (line.progressTintList?.defaultColor != color) line.progressTintList = ColorStateList.valueOf(color)
+
+        val host = parent as? ViewGroup ?: return
+        if (progressDotHost !== host) {
+            progressDotHost?.overlay?.remove(progressDot)
+            host.overlay.add(progressDot)
+            progressDotHost = host
+        }
+        if (showLine && active && durationMs != null) {
+            val radius = PROGRESS_DOT_SIZE_DP.dpToPx() / 2
+            val centerX = (x + fraction * width).toInt()
+            val centerY = (y + height - line.height / 2f).toInt()
+            progressDot.setBounds(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
+        } else {
+            progressDot.setBounds(0, 0, 0, 0)
+        }
+    }
+
+    /**
+     * Outside fullscreen, a drag along the progress line scrubs the video, also while the controls
+     * are hidden. A tap on the line does nothing.
+     *
+     * @return whether the event belongs to the progress line
+     */
+    private fun handleProgressLineTouch(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val onButton = isControllerFullyVisible &&
+                    listOf(binding.fullscreen, binding.exoTime).any { it.isVisible && it.containsTouch(event) }
+                lineTouch = backgroundBinding.videoProgressLine.isVisible && !onButton &&
+                    event.y >= height - PROGRESS_LINE_TOUCH_HEIGHT_DP.dpToPx()
+                if (!lineTouch) return false
+                lineTouchStartX = event.x
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                if (!lineTouch) return false
+                if (!lineScrubbing && abs(event.x - lineTouchStartX) > touchSlop) {
+                    lineScrubbing = true
+                    cancelHideControllerTask()
+                }
+                val durationMs = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
+                if (lineScrubbing && durationMs != null) {
+                    scrubPositionMs = ((event.x / width).coerceIn(0f, 1f) * durationMs).toLong()
+                    updateProgressLine()
+                }
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (!lineTouch) return false
+                if (lineScrubbing && event.actionMasked == MotionEvent.ACTION_UP) player?.seekTo(scrubPositionMs)
+                if (lineScrubbing && isControllerFullyVisible) enqueueHideControllerTask()
+                lineTouch = false
+                lineScrubbing = false
+                updateProgressLine()
+            }
+
+            else -> return lineTouch
+        }
+        return true
+    }
+
+    private fun View.containsTouch(event: MotionEvent): Boolean {
+        val rect = Rect().also {
+            getDrawingRect(it)
+            this@CustomExoPlayerView.offsetDescendantRectToMyCoords(this, it)
+        }
+        return rect.contains(event.x.toInt(), event.y.toInt())
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
+        handleProgressLineTouch(event) || super.dispatchTouchEvent(event)
 
     /**
      * Add extra margin to the top bar to not overlap the status bar.
@@ -1352,14 +1448,15 @@ class CustomExoPlayerView(
     }
 
     /**
-     * Outside fullscreen, the progress line below the time bar shows the progress, so the time bar
-     * only draws its dot. Fullscreen has no progress line, so the time bar draws its own bar.
+     * Outside fullscreen, the progress line below the time bar shows the progress and the dot, so the
+     * time bar only draws its marks. Fullscreen has no progress line, so the time bar draws its own bar.
      */
     private fun updateTimeBarColors(isFullscreen: Boolean) {
         binding.exoProgress.apply {
             setPlayedColor(if (isFullscreen) timelineRed else Color.TRANSPARENT)
             setBufferedColor(if (isFullscreen) DefaultTimeBar.DEFAULT_BUFFERED_COLOR else Color.TRANSPARENT)
             setUnplayedColor(if (isFullscreen) DefaultTimeBar.DEFAULT_UNPLAYED_COLOR else Color.TRANSPARENT)
+            setScrubberColor(if (isFullscreen) timelineRed else Color.TRANSPARENT)
         }
     }
 
@@ -1538,6 +1635,8 @@ class CustomExoPlayerView(
     fun getWindow(): Window = currentWindow ?: activity.window
 
     companion object {
+        private const val PROGRESS_DOT_SIZE_DP = 12f
+        private const val PROGRESS_LINE_TOUCH_HEIGHT_DP = 20f
         private const val HIDE_CONTROLLER_TOKEN = "hideController"
         private const val HIDE_FORWARD_BUTTON_TOKEN = "hideForwardButton"
         private const val HIDE_REWIND_BUTTON_TOKEN = "hideRewindButton"

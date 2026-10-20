@@ -136,6 +136,7 @@ import kotlin.math.absoluteValue
 
 private const val FULLSCREEN_ANIMATION_DURATION = 250
 private const val MAX_OFFLINE_SUGGESTIONS = 30
+private const val MINI_SEEK_BUTTON_SCALE = 0.6f
 private const val PULL_DOWN_FADE_DISTANCE = 160f
 private const val PULL_DOWN_RESET_DURATION = 200L
 
@@ -768,6 +769,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         val seekIncrementText = (PlayerHelper.seekIncrement / 1000).toString()
         binding.miniRewind.rewindTV.text = seekIncrementText
         binding.miniForward.forwardTV.text = seekIncrementText
+        // the seek buttons are made for the big player, draw them smaller in the slim bar
+        listOf(binding.miniRewind.root, binding.miniForward.root).forEach {
+            it.scaleX = MINI_SEEK_BUTTON_SCALE
+            it.scaleY = MINI_SEEK_BUTTON_SCALE
+        }
         binding.miniRewind.root.setOnClickListener {
             if (::playerController.isInitialized) playerController.seekBy(-PlayerHelper.seekIncrement)
         }
