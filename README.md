@@ -2,28 +2,60 @@
   <img src="assets/banners/gh-banner.png" width="auto" height="auto" alt="LibreTube">
 
 [![GPL-v3](assets/widgets/license-widget.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
-</div><div align="center" style="width:100%; display:flex; justify-content:space-between;">
 
-[![Matrix](assets/widgets/mat-widget.svg)](https://matrix.to/#/#LibreTube:matrix.org)
-[![Mastodon](assets/widgets/mast-widget.svg)](https://fosstodon.org/@libretube)
-[![Lemmy](assets/widgets/lemmy-widget.svg)](https://feddit.rocks/c/libretube)
+[<img src="assets/badges/ghload.png" alt="Get it on GitHub" width="30%">](https://github.com/rachadaccoumeh/LibreTube/releases/latest)
 
 </div>
 
-> **Note** <br>
-> We don't accept feature or bug requests on these platforms. Kindly submit requests only on GitHub.
+## LibreTube Fork — actively maintained, with a modern YouTube-like UI
 
-</div><div align="center" style="width:100%; display:flex; justify-content:space-between;">
+This is an actively maintained fork of [LibreTube](https://github.com/libre-tube/LibreTube). It follows upstream
+regularly and adds a player and app experience that feels like the current YouTube app, faster playback and
+reliable downloads.
 
-[<img src="assets/badges/fdrload.png" alt="Get it on F-Droid" width="30%">](https://f-droid.org/en/packages/com.github.libretube/)
-[<img src="assets/badges/izzyload.png" alt="Get it on IzzyOnDroid" width="30%">](https://apt.izzysoft.de/fdroid/index/apk/com.github.libretube)<br/>
-[<img src="assets/badges/ghload.png" alt="Get it on GitHub" width="30%">](https://github.com/libre-tube/LibreTube/releases/latest)
-[<img src="assets/badges/ghload-nightly.png" alt="Get it on GitHub (Nightly)" width="30%">](https://github.com/libre-tube/LibreTube/releases/tag/nightly)
+The app installs as **LibreTube Fork** (`com.github.libretube.fork`), next to the official LibreTube, so you can
+keep both.
 
-</div>
+### What is new in this fork
 
-> **Note about Nightly builds** <br>
-> Nightly builds include features/fixes before the official release. Therefore, they are generally less stable than normal releases. Use nightly builds at your own risk.
+**Player**
+- YouTube-style controls: round play, previous and next buttons, time pill and fullscreen button at the bottom edge
+- Thin progress line on the video edge: white while playing, red with a dot when the controls show; drag it to seek
+- Swipe down on the video to minimize, pull down on the title area for portrait fullscreen, swipe down to leave fullscreen
+- Smooth in-place fullscreen (no black flash), brightness and volume swipes in fullscreen, free pinch zoom and pan
+- The paused video shows its frame when the app opens, instead of a black screen
+
+**Floating mini player**
+- A small video card that stays on top while you browse the app
+- Drag it anywhere, pinch to resize it, or park it on the left or right side of the screen
+- Control bar with play/pause and 10-second rewind and forward
+
+**Playback**
+- SABR (YouTube's own streaming protocol) first, with DASH and HLS as fallbacks
+- Auto quality that really adapts to your connection
+
+**Downloads**
+- Up to 6 parallel downloads, with pause, resume, stop and "resume all"
+- Verify downloads and a full backup and restore that includes the media files
+- Fixes for downloads that were lost or corrupted in upstream (second quality, resumed SABR downloads)
+
+**Feed and lists**
+- NEW badges in the subscriptions feed and a "mark as caught up" divider
+- 3-dot menu on every video card, a back-to-top button on long lists
+- Random suggestions under downloaded videos
+
+### Install
+
+Download the APK from the [latest release](https://github.com/rachadaccoumeh/LibreTube/releases/latest) and open it on your phone.
+
+### Contributing
+
+Issues and pull requests are welcome. Please report bugs of this fork in this repository's
+[issues](https://github.com/rachadaccoumeh/LibreTube/issues), not in the upstream project.
+
+---
+
+The upstream LibreTube README follows. All credit for the base app goes to the LibreTube team and contributors.
 
 <details>
   <summary>📜️ Credits</summary>

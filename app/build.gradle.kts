@@ -64,6 +64,9 @@ android {
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
+            // fork releases install next to the official LibreTube instead of conflicting with it
+            applicationIdSuffix = ".fork"
+            resValue("string", "app_name", "LibreTube Fork")
             signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile != null }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -120,6 +123,18 @@ android {
     }
 
     namespace = "com.github.libretube"
+}
+
+// fork releases have their own version line; the release workflow passes it from the git tag
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        val name = providers.gradleProperty("forkVersionName").orNull ?: return@onVariants
+        val code = providers.gradleProperty("forkVersionCode").orNull?.toInt() ?: return@onVariants
+        variant.outputs.forEach {
+            it.versionName.set(name)
+            it.versionCode.set(code)
+        }
+    }
 }
 
 dependencies {
