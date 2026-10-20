@@ -139,12 +139,16 @@ open class OnlinePlayerService : AbstractPlayerService() {
         // start loading the video info while keeping a reference to the job
         // so that it can be canceled once a different video is loaded
         fetchVideoInfoJob = scope.launch {
+            val startMs = System.currentTimeMillis()
             streams = withContext(Dispatchers.IO) {
                 try {
                     MediaServiceRepository.instance.getStreams(videoId).let {
                         DeArrowUtil.deArrowStreams(it, videoId)
+                    }.also {
+                        Log.w(TAG(), "fetchVideoInfo: $videoId loaded in ${System.currentTimeMillis() - startMs}ms")
                     }
                 } catch (e: Exception) {
+                    Log.w(TAG(), "fetchVideoInfo: $videoId failed after ${System.currentTimeMillis() - startMs}ms")
                     Log.e(TAG(), e.stackTraceToString())
                     toastFromMainDispatcher(e.localizedMessage.orEmpty())
                     return@withContext null
