@@ -1359,6 +1359,20 @@ class CustomExoPlayerView(
     override fun dispatchTouchEvent(event: MotionEvent): Boolean =
         handleProgressLineTouch(event) || super.dispatchTouchEvent(event)
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        // MotionLayout resizes this view with layout() only, so the video would keep the size of the
+        // last measure (e.g. the mini player's) and be drawn small in the top left corner
+        if (measuredWidth != w || measuredHeight != h) post {
+            if (measuredWidth == width && measuredHeight == height) return@post
+            measure(
+                MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
+            )
+            layout(left, top, right, bottom)
+        }
+    }
+
     /**
      * Add extra margin to the top bar to not overlap the status bar.
      */

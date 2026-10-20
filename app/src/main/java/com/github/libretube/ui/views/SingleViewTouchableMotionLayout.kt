@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
 import android.util.AttributeSet
-import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -161,14 +160,9 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         miniPlayerWidth = newWidth
         miniPlayerX = (centerX - newWidth / 2f).toInt()
         miniPlayerY = (centerY - newWidth * 9 / 16 / 2f).toInt()
-        val releasedY = card.y
         applyMiniPlayerBounds()
         // keep the temporary transform until the new layout is ready, to avoid a one frame jump
-        card.doOnPreDraw {
-            resetMiniPlayerTransforms()
-            // diagnostic for a card that moves down after release; remove once fixed
-            Log.w(TAG, "mini player released at y=$releasedY, placed at y=${card.y}, container y=${(parent as? View)?.y}")
-        }
+        card.doOnPreDraw { resetMiniPlayerTransforms() }
     }
 
     private fun resetMiniPlayerTransforms() = miniPlayerViews.forEach {
@@ -204,15 +198,25 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             val statusBarHeight = ViewCompat.getRootWindowInsets(this)
                 ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
             val minY = (statusBarHeight - location[1] + margin).coerceAtLeast(margin)
-            // the card may be parked mostly off the left or right side, a part stays to drag it back
-            val peekWidth = cardWidth / MINI_PLAYER_PEEK_FRACTION
             val controlsHeight = miniControls?.layoutParams?.height?.coerceAtLeast(0) ?: 0
-            val maxY = (height - cardHeight - controlsHeight - margin).coerceAtLeast(minY)
+            val maxY = (height - paddingBottom - cardHeight - controlsHeight - margin).coerceAtLeast(minY)
+
+            // a card dragged a third over the left or right edge parks there with a small part
+            // left to drag it back, any other card stays fully inside the borders
+            val peekWidth = cardWidth / MINI_PLAYER_PEEK_FRACTION
+            val parkOverflow = cardWidth / MINI_PLAYER_PARK_FRACTION
+            val placedX = when {
+                x < -parkOverflow -> peekWidth - cardWidth
+                x + cardWidth > width + parkOverflow -> width - peekWidth
+                else -> x.coerceIn(margin, (width - cardWidth - margin).coerceAtLeast(margin))
+            }
+            miniPlayerX = placedX
 
             set.clear(cardId, ConstraintSet.END)
             set.clear(cardId, ConstraintSet.BOTTOM)
-            set.connect(cardId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, x.coerceIn(peekWidth - cardWidth, width - peekWidth))
-            set.connect(cardId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, y.coerceIn(minY, maxY))
+            // margins count from inside the padding (status bar space), x and y from the view edge
+            set.connect(cardId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START, placedX - paddingLeft)
+            set.connect(cardId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, y.coerceIn(minY, maxY) - paddingTop)
         }
 
         updateState(R.id.end, set)
@@ -379,7 +383,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         private const val MINI_PLAYER_MIN_WIDTH_DP = 140f
         private const val MINI_PLAYER_DEFAULT_WIDTH_DP = 200f
         private const val MINI_PLAYER_PEEK_FRACTION = 6
-        private const val TAG = "MiniPlayer"
+        private const val MINI_PLAYER_PARK_FRACTION = 3
 
         // kept for the app's lifetime so the next video's mini player opens at the same place
         private var miniPlayerWidth: Int? = null
