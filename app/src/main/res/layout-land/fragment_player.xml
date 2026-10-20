@@ -10,7 +10,6 @@
     <androidx.core.widget.NestedScrollView
         android:id="@+id/player_scrollView"
         android:overScrollMode="never"
-        android:nestedScrollingEnabled="false"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="?android:colorBackground"

@@ -466,6 +466,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
         normalRootTopPadding = binding.root.paddingTop
 
+        // the video info only scrolls: passing its overscroll to the motion layout minimized the
+        // player. Set in code, the XML attribute crashes NestedScrollView before its helper exists
+        binding.playerScrollView.isNestedScrollingEnabled = false
+
 
         val playerData = requireArguments().parcelable<PlayerData>(IntentData.playerData)!!
         playerData.videoId?.let { videoId = it }
