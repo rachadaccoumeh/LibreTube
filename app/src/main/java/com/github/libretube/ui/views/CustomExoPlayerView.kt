@@ -1242,6 +1242,14 @@ class CustomExoPlayerView(
             )
         binding.timeLeft.text = "-${DateUtils.formatElapsedTime(timeLeft)}"
 
+        // YouTube-like thin progress line while the controls are hidden (not in fullscreen and
+        // not in the mini player, which has its own progress bar)
+        backgroundBinding.videoProgressLine.apply {
+            isVisible = useController && !isControllerFullyVisible && !isFullscreen()
+            val durationMs = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
+            progress = if (durationMs == null) 0 else ((player?.currentPosition ?: 0) * max / durationMs).toInt()
+        }
+
         runnableHandler.postDelayed(100, UPDATE_POSITION_TOKEN, this::updateCurrentPosition)
     }
 

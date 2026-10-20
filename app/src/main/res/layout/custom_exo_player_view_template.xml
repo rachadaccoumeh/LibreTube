@@ -125,6 +125,17 @@
         android:indeterminate="true"
         android:visibility="gone" />
 
+    <ProgressBar
+        android:id="@+id/video_progress_line"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_gravity="bottom"
+        android:max="1000"
+        android:progressBackgroundTint="#66FFFFFF"
+        android:progressTint="@color/player_timeline_red"
+        android:visibility="gone" />
+
     <com.github.libretube.ui.views.FastForwardView
         android:id="@+id/fastForwardView"
         android:visibility="gone"

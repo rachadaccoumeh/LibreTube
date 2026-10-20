@@ -28,7 +28,7 @@
                     android:id="@+id/close_imageButton"
                     style="@style/PlayerControlTop"
                     android:layout_marginEnd="-10dp"
-                    android:src="@drawable/ic_close"
+                    android:src="@drawable/ic_arrow_down"
                     android:tooltipText="@string/tooltip_minimize"
                     app:tint="@android:color/white" />
 
@@ -141,7 +141,10 @@
         <ImageView
             android:id="@+id/skip_prev"
             style="@style/PlayerControlCenter"
-            android:background="?android:selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:background="@drawable/circle"
+            android:backgroundTint="#66000000"
+            android:foreground="?android:selectableItemBackgroundBorderless"
             android:src="@drawable/ic_prev"
             android:visibility="invisible"
             app:tint="@android:color/white" />
@@ -150,14 +153,19 @@
             android:id="@+id/playPauseBTN"
             style="@style/ExoStyledControls.Button.Center.PlayPause"
             android:layout_marginHorizontal="10dp"
-            android:background="?android:selectableItemBackgroundBorderless"
+            android:background="@drawable/circle"
+            android:backgroundTint="#66000000"
+            android:foreground="?android:selectableItemBackgroundBorderless"
             android:src="@drawable/ic_play"
             app:tint="@android:color/white" />
 
         <ImageView
             android:id="@+id/skip_next"
             style="@style/PlayerControlCenter"
-            android:background="?android:selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:background="@drawable/circle"
+            android:backgroundTint="#66000000"
+            android:foreground="?android:selectableItemBackgroundBorderless"
             android:src="@drawable/ic_next"
             android:visibility="invisible"
             app:tint="@android:color/white" />
@@ -236,7 +244,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:layout_marginStart="10dp">
+                android:layout_marginStart="10dp"
+                android:background="@drawable/player_time_background"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="2dp">
 
                 <TextView
                     android:id="@+id/position"
@@ -246,7 +257,7 @@
 
                 <TextView
                     style="@style/TimeString"
-                    android:text="  •  "
+                    android:text="/"
                     tools:ignore="HardcodedText" />
 
                 <TextView
@@ -311,7 +322,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:layout_marginHorizontal="10dp"
             android:translationZ="10dp">
 
             <com.github.libretube.ui.views.ChapterTimeBar
@@ -319,9 +329,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:paddingTop="6dp"
-                app:bar_height="2dp"
-                app:played_color="?attr/colorSecondary"
-                app:scrubber_color="?attr/colorSecondary"
+                app:bar_gravity="bottom"
+                app:bar_height="3dp"
+                app:played_color="@color/player_timeline_red"
+                app:scrubber_color="@color/player_timeline_red"
                 app:scrubber_dragged_size="16dp"
                 app:scrubber_enabled_size="12dp"
                 app:touch_target_height="35dp" />

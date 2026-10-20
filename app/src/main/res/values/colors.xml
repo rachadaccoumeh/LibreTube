@@ -403,4 +403,5 @@
     <color name="violet_theme_dark_inverseSurface">#EFDBFF</color>
     <color name="violet_theme_dark_inversePrimary">#714AAA</color>
 
+    <color name="player_timeline_red">#FF0033</color>
 </resources>
