@@ -18,7 +18,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.doOnPreDraw
-import androidx.core.widget.NestedScrollView
 import com.github.libretube.R
 
 class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeSet? = null) :
@@ -34,8 +33,6 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     private val viewRect = Rect()
     private val transitionListenerList = mutableListOf<TransitionListener?>()
     private val swipeDownListener = mutableListOf<() -> Unit>()
-    private val swipeDownOnScrollListener = mutableListOf<(Float) -> Unit>()
-    private val swipeDownOnScrollEndListener = mutableListOf<(Boolean) -> Unit>()
     private val gestureDetector = GestureDetector(context, Listener())
     private val scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
     private var pinchScale = 1f
@@ -51,7 +48,6 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         ).mapNotNull { findViewById<View>(it) }
     }
 
-    private val scrollView by lazy { findViewById<NestedScrollView>(R.id.player_scrollView) }
 
     private var startedMinimized = false
     private var touchInitialX = 0f
@@ -60,10 +56,6 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     private var shouldInterceptTouchEvent = false
 
     // touch tracking for swipe-down-to-portrait-fullscreen on the scroll area
-    private var isTouchOnScrollView = false
-    private var scrollTouchStartY = 0f
-    private var scrollAtTop = false
-    private var portraitFullscreenTriggered = false
 
     init {
         super.setTransitionListener(object : TransitionAdapter() {
@@ -221,18 +213,6 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         swipeDownListener.add(listener)
     }
 
-    /**
-     * Add a listener for when the user swipes down on the scroll area while the player
-     * is expanded and the scroll view is at the top. Used to enter portrait fullscreen.
-     */
-    fun addSwipeDownOnScrollListener(listener: (Float) -> Unit) = apply {
-        swipeDownOnScrollListener.add(listener)
-    }
-
-    fun addSwipeDownOnScrollEndListener(listener: (Boolean) -> Unit) = apply {
-        swipeDownOnScrollEndListener.add(listener)
-    }
-
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
         when (event?.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -294,52 +274,6 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         return shouldInterceptTouchEvent
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        // Track scroll-down-to-portrait-fullscreen gesture here (not in onInterceptTouchEvent)
-        // because dispatchTouchEvent always receives all events, even after the ScrollView
-        // calls requestDisallowInterceptTouchEvent(true) when it starts scrolling.
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                // track touch on scroll view for portrait fullscreen gesture
-                isTouchOnScrollView = false
-                portraitFullscreenTriggered = false
-                scrollView?.let { sv ->
-                    sv.getHitRect(viewRect)
-                    if (viewRect.contains(event.x.toInt(), event.y.toInt())) {
-                        isTouchOnScrollView = true
-                        scrollTouchStartY = event.y
-                        scrollAtTop = !sv.canScrollVertically(-1)
-                    }
-                }
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && currentState != R.id.end) {
-                    val deltaY = event.y - scrollTouchStartY
-                    // Report live drag progress for animation (even past threshold, even negative)
-                    swipeDownOnScrollListener.forEach { it.invoke(deltaY) }
-                    if (deltaY > 80f.dpToPx()) {
-                        portraitFullscreenTriggered = true
-                    } else if (deltaY < 0) {
-                        // Finger moved back above start — cancel the trigger
-                        portraitFullscreenTriggered = false
-                    }
-                }
-            }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && currentState != R.id.end) {
-                    swipeDownOnScrollEndListener.forEach {
-                        it.invoke(portraitFullscreenTriggered)
-                    }
-                }
-                portraitFullscreenTriggered = false
-                isTouchOnScrollView = false
-            }
-        }
-        return super.dispatchTouchEvent(event)
-    }
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (isTouchDownInsideHitArea && startedMinimized) {
