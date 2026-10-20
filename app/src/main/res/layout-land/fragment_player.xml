@@ -240,22 +240,45 @@
         app:layout_constraintEnd_toEndOf="@id/main_container"
         app:layout_constraintTop_toTopOf="@id/main_container" />
 
-    <ImageView
-        android:id="@+id/play_imageView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!-- mini player control bar below the video: rewind, play/pause, forward -->
+    <LinearLayout
+        android:id="@+id/mini_controls"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
         android:alpha="0"
-        android:background="@drawable/circle"
-        android:backgroundTint="#80000000"
-        android:foreground="?attr/selectableItemBackgroundBorderless"
-        app:tint="@android:color/white"
-        android:padding="8dp"
-        android:src="@drawable/ic_play"
-        android:tooltipText="@string/tooltip_play"
+        android:background="#F2141414"
+        android:gravity="center"
+        android:orientation="horizontal"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@+id/close_imageView"
-        app:layout_constraintEnd_toStartOf="@+id/close_imageView"
-        app:layout_constraintTop_toTopOf="@+id/close_imageView" />
+        app:layout_constraintEnd_toEndOf="@id/main_container"
+        app:layout_constraintStart_toStartOf="@id/main_container"
+        app:layout_constraintTop_toBottomOf="@id/main_container">
+
+        <include
+            android:id="@+id/mini_rewind"
+            layout="@layout/seek_button_rewind"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <ImageView
+            android:id="@+id/play_imageView"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginHorizontal="20dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_play"
+            android:tooltipText="@string/tooltip_play"
+            app:tint="@android:color/white" />
+
+        <include
+            android:id="@+id/mini_forward"
+            layout="@layout/seek_button_forward"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
 
     <TextView
         android:id="@+id/title_textView"
@@ -267,9 +290,9 @@
         android:paddingHorizontal="8dp"
         android:paddingVertical="15dp"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@+id/play_imageView"
-        app:layout_constraintEnd_toStartOf="@+id/play_imageView"
+        app:layout_constraintBottom_toBottomOf="@+id/close_imageView"
+        app:layout_constraintEnd_toStartOf="@+id/close_imageView"
         app:layout_constraintStart_toEndOf="@+id/player"
-        app:layout_constraintTop_toTopOf="@+id/play_imageView" />
+        app:layout_constraintTop_toTopOf="@+id/close_imageView" />
 
 </com.github.libretube.ui.views.SingleViewTouchableMotionLayout>

@@ -77,6 +77,7 @@ import com.github.libretube.enums.SbSkipOptions
 import com.github.libretube.enums.ShareObjectType
 import com.github.libretube.extensions.formatShort
 import com.github.libretube.extensions.parcelable
+import com.github.libretube.extensions.seekBy
 import com.github.libretube.extensions.serializableExtra
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.toID
@@ -763,6 +764,15 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         binding.playImageView.setOnClickListener {
             if (::playerController.isInitialized) playerController.togglePlayPauseState()
+        }
+        val seekIncrementText = (PlayerHelper.seekIncrement / 1000).toString()
+        binding.miniRewind.rewindTV.text = seekIncrementText
+        binding.miniForward.forwardTV.text = seekIncrementText
+        binding.miniRewind.root.setOnClickListener {
+            if (::playerController.isInitialized) playerController.seekBy(-PlayerHelper.seekIncrement)
+        }
+        binding.miniForward.root.setOnClickListener {
+            if (::playerController.isInitialized) playerController.seekBy(PlayerHelper.seekIncrement)
         }
 
         activity?.supportFragmentManager

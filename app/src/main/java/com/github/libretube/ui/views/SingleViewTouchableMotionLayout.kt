@@ -46,11 +46,11 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             R.id.main_container,
             R.id.player,
             R.id.close_imageView,
-            R.id.play_imageView,
+            R.id.mini_controls,
             R.id.miniPlayerProgress
         ).mapNotNull { findViewById<View>(it) }
     }
-
+    private val miniControls by lazy { findViewById<View>(R.id.mini_controls) }
 
     private var startedMinimized = false
     private var touchInitialX = 0f
@@ -199,7 +199,8 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                 ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
             val minY = (statusBarHeight - location[1] + margin).coerceAtLeast(margin)
             val maxX = (width - cardWidth - margin).coerceAtLeast(margin)
-            val maxY = (height - cardHeight - margin).coerceAtLeast(minY)
+            val controlsHeight = miniControls?.layoutParams?.height?.coerceAtLeast(0) ?: 0
+            val maxY = (height - cardHeight - controlsHeight - margin).coerceAtLeast(minY)
 
             set.clear(cardId, ConstraintSet.END)
             set.clear(cardId, ConstraintSet.BOTTOM)
@@ -245,11 +246,16 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                 // never intercept touch event if we're currently in audio player mode
                 if (isAudioPlayer) return false
 
+                startedMinimized = currentState == R.id.end
                 viewToDetectTouch.getHitRect(viewRect)
                 isTouchDownInsideHitArea = viewRect.contains(event.x.toInt(), event.y.toInt())
+                // the control bar below the mini player video belongs to the card too
+                if (startedMinimized && !isTouchDownInsideHitArea) {
+                    miniControls?.getHitRect(viewRect)
+                    isTouchDownInsideHitArea = viewRect.contains(event.x.toInt(), event.y.toInt())
+                }
                 touchInitialX = event.x
                 touchInitialY = event.y
-                startedMinimized = currentState == R.id.end
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
