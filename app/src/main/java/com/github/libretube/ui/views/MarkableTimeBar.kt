@@ -5,8 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.AttributeSet
-import android.view.View
-import androidx.core.view.marginLeft
 import androidx.media3.common.util.UnstableApi
 import com.github.libretube.api.obj.Segment
 import com.github.libretube.extensions.dpToPx
@@ -36,9 +34,9 @@ open class MarkableTimeBar(
         if (exoPlayer == null) return
 
         canvas.save()
-        val horizontalOffset = (parent as View).marginLeft
+        val horizontalOffset = BAR_EDGE_INSET
         length = canvas.width - horizontalOffset * 2
-        val marginY =  (canvas.height - progressBarHeight) / 2
+        val marginY = canvas.height - BAR_BOTTOM_INSET - progressBarHeight
         val themeColor = ThemeHelper.getThemeColor(context, R.attr.colorOnSecondary)
 
         segments.forEach {
@@ -73,5 +71,13 @@ open class MarkableTimeBar(
 
     fun clearSegments() {
         segments = listOf()
+    }
+
+    companion object {
+        /** The time bar draws its bar half a scrubber (16dp / 2) inside each side. */
+        val BAR_EDGE_INSET = 8f.dpToPx()
+
+        /** With bar_gravity="bottom", the bar ends (scrubber / 2 - bar height / 2) above the bottom. */
+        val BAR_BOTTOM_INSET = 6.5f.dpToPx()
     }
 }

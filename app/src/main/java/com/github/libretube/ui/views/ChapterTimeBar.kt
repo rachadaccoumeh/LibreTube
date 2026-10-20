@@ -9,8 +9,6 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.os.Build
 import android.util.AttributeSet
-import android.view.View
-import androidx.core.view.marginLeft
 import androidx.media3.common.util.UnstableApi
 import com.github.libretube.api.obj.ChapterSegment
 import com.github.libretube.extensions.dpToPx
@@ -48,9 +46,9 @@ class ChapterTimeBar(
     private fun drawChapters(canvas: Canvas) {
         if (exoPlayer == null) return
 
-        val horizontalOffset = (parent as View).marginLeft
+        val horizontalOffset = BAR_EDGE_INSET
         length = width - horizontalOffset * 2
-        val marginY = (height - progressBarHeight) / 2
+        val marginY = height - BAR_BOTTOM_INSET - progressBarHeight
 
         // skip the first chapter as it always starts at 0:00
         chapters.drop(1).forEach {

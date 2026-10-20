@@ -235,17 +235,16 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="-6dp"
+            android:layout_marginBottom="-18dp"
             android:baselineAligned="false"
-            android:paddingStart="10dp"
-            android:paddingEnd="20dp">
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
 
             <LinearLayout
                 android:id="@id/exo_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:layout_marginStart="10dp"
                 android:background="@drawable/player_time_background"
                 android:paddingHorizontal="4dp"
                 android:paddingVertical="2dp">

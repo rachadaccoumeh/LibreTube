@@ -1,5 +1,6 @@
 package com.github.libretube.ui.views
 
+import android.content.res.ColorStateList
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -16,6 +17,7 @@ import android.view.Window
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.media3.ui.DefaultTimeBar
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
@@ -106,6 +108,8 @@ class CustomExoPlayerView(
     private var audioHelper: AudioHelper
     private lateinit var chaptersViewModel: ChaptersViewModel
     private lateinit var seekBarListener: TimeBar.OnScrubListener
+    private var scrubPositionMs = 0L
+    private val timelineRed = ContextCompat.getColor(context, R.color.player_timeline_red)
     private var fullscreenGestureAnimationController: FullscreenGestureAnimationController
     private var chaptersBottomSheet: ChaptersBottomSheet? = null
     private var scrubbingTimeBar = false
@@ -236,6 +240,7 @@ class CustomExoPlayerView(
         controllerAutoShow = false
 
         binding.fullscreen.setOnClickListener { playerCallback.toggleFullscreen() }
+        updateTimeBarColors(isFullscreen())
 
         resizeMode = resizeModePref
 
@@ -248,6 +253,7 @@ class CustomExoPlayerView(
 
                 override fun onScrubMove(timeBar: TimeBar, position: Long) {
                     cancelHideControllerTask()
+                    scrubPositionMs = position
 
                     setCurrentChapterName(forceUpdate = true, enqueueNew = false)
                     scrubbingTimeBar = true
@@ -1244,10 +1250,14 @@ class CustomExoPlayerView(
 
         // YouTube-like thin progress line while the controls are hidden (not in fullscreen and
         // not in the mini player, which has its own progress bar)
+        // the line turns red while the controls are shown; the time bar then only draws its dot on it
         backgroundBinding.videoProgressLine.apply {
-            isVisible = useController && !isControllerFullyVisible && !isFullscreen()
+            isVisible = useController && !isFullscreen()
             val durationMs = player?.duration?.takeIf { it != C.TIME_UNSET && it > 0 }
-            progress = if (durationMs == null) 0 else ((player?.currentPosition ?: 0) * max / durationMs).toInt()
+            val positionMs = if (scrubbingTimeBar) scrubPositionMs else player?.currentPosition ?: 0
+            progress = if (durationMs == null) 0 else (positionMs * max / durationMs).toInt()
+            val color = if (isControllerFullyVisible) timelineRed else Color.WHITE
+            if (progressTintList?.defaultColor != color) progressTintList = ColorStateList.valueOf(color)
         }
 
         runnableHandler.postDelayed(100, UPDATE_POSITION_TOKEN, this::updateCurrentPosition)
@@ -1341,6 +1351,18 @@ class CustomExoPlayerView(
         }
     }
 
+    /**
+     * Outside fullscreen, the progress line below the time bar shows the progress, so the time bar
+     * only draws its dot. Fullscreen has no progress line, so the time bar draws its own bar.
+     */
+    private fun updateTimeBarColors(isFullscreen: Boolean) {
+        binding.exoProgress.apply {
+            setPlayedColor(if (isFullscreen) timelineRed else Color.TRANSPARENT)
+            setBufferedColor(if (isFullscreen) DefaultTimeBar.DEFAULT_BUFFERED_COLOR else Color.TRANSPARENT)
+            setUnplayedColor(if (isFullscreen) DefaultTimeBar.DEFAULT_UNPLAYED_COLOR else Color.TRANSPARENT)
+        }
+    }
+
     private fun resetPinchZoom() {
         videoSurfaceView?.animate()
             ?.scaleX(1f)?.scaleY(1f)
@@ -1386,6 +1408,7 @@ class CustomExoPlayerView(
     override fun onFullscreenChange(isFullscreen: Boolean) {
         // the player size changes, so a pinch zoom and pan would no longer fit
         resetPinchZoom()
+        updateTimeBarColors(isFullscreen)
 
         if (isFullscreen) {
             if (PlayerHelper.swipeGestureEnabled) {
