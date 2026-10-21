@@ -65,8 +65,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     private var scrollTouchStartY = 0f
     private var scrollAtTop = false
     private var portraitFullscreenTriggered = false
-
-    // touch tracking for swipe-down-to-portrait-fullscreen on the scroll area
+    private var pullDownOwnsTouch = false
 
     init {
         super.setTransitionListener(object : TransitionAdapter() {
@@ -324,6 +323,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                 // track touch on scroll view for portrait fullscreen gesture
                 isTouchOnScrollView = false
                 portraitFullscreenTriggered = false
+                pullDownOwnsTouch = false
                 scrollView?.let { sv ->
                     sv.getHitRect(viewRect)
                     // only the header above the suggestions starts the gesture, the suggestions only scroll
@@ -341,6 +341,15 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                     val deltaY = event.y - scrollTouchStartY
                     // Report live drag progress for animation (even past threshold, even negative)
                     swipeDownOnScrollListener.forEach { it.invoke(deltaY) }
+                    // the header moves with the finger, so its children never see the drag and
+                    // would fire a click on release: take the touch away from them once
+                    if (!pullDownOwnsTouch && deltaY > scaledTouchSlop) {
+                        pullDownOwnsTouch = true
+                        MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }.also {
+                            super.dispatchTouchEvent(it)
+                            it.recycle()
+                        }
+                    }
                     if (deltaY > 80f.dpToPx()) {
                         portraitFullscreenTriggered = true
                     } else if (deltaY < 0) {
@@ -358,8 +367,13 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                 }
                 portraitFullscreenTriggered = false
                 isTouchOnScrollView = false
+                if (pullDownOwnsTouch) {
+                    pullDownOwnsTouch = false
+                    return true
+                }
             }
         }
+        if (pullDownOwnsTouch) return true
         return super.dispatchTouchEvent(event)
     }
     @SuppressLint("ClickableViewAccessibility")
