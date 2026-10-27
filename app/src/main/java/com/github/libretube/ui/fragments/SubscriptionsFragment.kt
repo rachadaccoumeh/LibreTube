@@ -194,8 +194,11 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         }
 
         binding.channelGroups.setOnCheckedStateChangeListener { group, _ ->
-            selectedFilterGroup =
-                group.children.indexOfFirst { it.id == group.checkedChipId } - 1 // 0th index is "all" button
+            selectedFilterGroup = when (group.checkedChipId) {
+                R.id.chip_all -> FILTER_GROUP_ALL
+                R.id.chip_ungrouped -> FILTER_GROUP_UNGROUPED
+                else -> group.children.indexOfFirst { it.id == group.checkedChipId } - 1 // 0th index is "all" button
+            }
 
             lifecycleScope.launch {
                 showFeed(restoreScrollState = false)
@@ -301,6 +304,10 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         val binding = _binding ?: return
 
         val groups = viewModel.groups.value.orEmpty()
+        // a saved group that no longer exists would refresh no channels at all
+        if (selectedFilterGroup != FILTER_GROUP_UNGROUPED && selectedFilterGroup !in groups.indices) {
+            selectedFilterGroup = FILTER_GROUP_ALL
+        }
 
         binding.chipAll.isChecked = selectedFilterGroup == FILTER_GROUP_ALL
         binding.chipAll.setOnLongClickListener {
