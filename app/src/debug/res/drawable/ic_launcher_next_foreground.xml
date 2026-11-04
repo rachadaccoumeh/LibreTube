@@ -6,13 +6,34 @@
     android:height="108dp"
     android:viewportWidth="1280"
     android:viewportHeight="1280">
-    <!-- the original logo and a second chevron nested at its tip, scaled to fill the icon -->
+    <!-- the original logo in front of a second chevron that trails behind it -->
     <group
-        android:pivotX="780.65"
+        android:pivotX="729.15"
         android:pivotY="640"
-        android:scaleX="1.30"
-        android:scaleY="1.30"
-        android:translateX="-140.65">
+        android:scaleX="1.155"
+        android:scaleY="1.155"
+        android:translateX="-89.15">
+        <group android:translateX="95">
+            <path android:pathData="m863.3,639.7c0,-2.3 -1.2,-4.4 -3.1,-5.5L527.9,437.1c-5.8,-3.4 -13.1,0.8 -13.1,7.6v85c0,3.2 1.7,6.1 4.4,7.7l165.6,94.8c5.9,3.4 5.9,12 0,15.4l-165.6,94.8c-2.7,1.6 -4.4,4.5 -4.4,7.7v84.9c0,6.8 7.3,11.1 13.1,7.6L860.1,645.2c1.9,-1.2 3.1,-3.3 3.1,-5.5z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:endColor="#B1B7FF"
+                        android:endX="0"
+                        android:endY="843"
+                        android:startColor="#D866FF"
+                        android:startX="0"
+                        android:startY="437"
+                        android:type="linear" />
+                </aapt:attr>
+            </path>
+        </group>
+        <!-- background coloured outline that separates the front chevron from the one behind -->
+        <path
+            android:fillColor="@color/ic_launcher_background"
+            android:pathData="m863.3,639.7c0,-2.3 -1.2,-4.4 -3.1,-5.5L527.9,437.1c-5.8,-3.4 -13.1,0.8 -13.1,7.6v85c0,3.2 1.7,6.1 4.4,7.7l165.6,94.8c5.9,3.4 5.9,12 0,15.4l-165.6,94.8c-2.7,1.6 -4.4,4.5 -4.4,7.7v84.9c0,6.8 7.3,11.1 13.1,7.6L860.1,645.2c1.9,-1.2 3.1,-3.3 3.1,-5.5z"
+            android:strokeWidth="44"
+            android:strokeColor="@color/ic_launcher_background"
+            android:strokeLineJoin="round" />
         <path android:pathData="m863.3,639.7c0,-2.3 -1.2,-4.4 -3.1,-5.5L527.9,437.1c-5.8,-3.4 -13.1,0.8 -13.1,7.6v85c0,3.2 1.7,6.1 4.4,7.7l165.6,94.8c5.9,3.4 5.9,12 0,15.4l-165.6,94.8c-2.7,1.6 -4.4,4.5 -4.4,7.7v84.9c0,6.8 7.3,11.1 13.1,7.6L860.1,645.2c1.9,-1.2 3.1,-3.3 3.1,-5.5z">
             <aapt:attr name="android:fillColor">
                 <gradient
@@ -28,19 +49,5 @@
         <path
             android:fillColor="#F2EEFF"
             android:pathData="m582.8,634.5c4.2,2.4 4.2,8.5 0,10.9l-73.8,42.5c-4.1,2.4 -9.2,-0.6 -9.2,-5.4v-85.1c0,-4.8 5.1,-7.8 9.2,-5.4z" />
-        <group android:translateX="198">
-        <path android:pathData="m863.3,639.7c0,-2.3 -1.2,-4.4 -3.1,-5.5L527.9,437.1c-5.8,-3.4 -13.1,0.8 -13.1,7.6v85c0,3.2 1.7,6.1 4.4,7.7l165.6,94.8c5.9,3.4 5.9,12 0,15.4l-165.6,94.8c-2.7,1.6 -4.4,4.5 -4.4,7.7v84.9c0,6.8 7.3,11.1 13.1,7.6L860.1,645.2c1.9,-1.2 3.1,-3.3 3.1,-5.5z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:endColor="#B1B7FF"
-                    android:endX="0"
-                    android:endY="843"
-                    android:startColor="#D866FF"
-                    android:startX="0"
-                    android:startY="437"
-                    android:type="linear" />
-            </aapt:attr>
-        </path>
-        </group>
     </group>
 </vector>
