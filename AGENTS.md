@@ -5,7 +5,7 @@ libre-tube/LibreTube with custom features: downloads management (verify,
 queue, pause all, full backup with media), NEW badges and manual "caught up" in
 the feed, AI assistant, icon-only player actions, SABR playback and downloads.
 Released as LibreTube Next (`com.github.libretube.next`); development uses the
-debug build (`com.github.libretube.debug`).
+debug build (`com.github.libretube.next.debug`).
 
 This file is the orchestrator for any agent working in this repo: hard rules,
 structural orientation, and a pointer to the index. Detailed behaviour lives in
@@ -21,7 +21,7 @@ before working in its area.
 
 ### Never lose the user's downloads
 The test device holds large downloads in the app-private folder
-`/sdcard/Android/data/com.github.libretube.debug/files/` (video, audio,
+`/sdcard/Android/data/com.github.libretube.next.debug/files/` (video, audio,
 thumbnail, subtitle). Uninstall or "clear data" deletes all of it. Update only
 with `adb install -r` of an APK signed with the same debug keystore; never
 uninstall, never `pm clear`, never install with `-d` downgrades without a check.
@@ -101,5 +101,5 @@ adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Debug builds are signed with `~/.android/debug.keystore` on the dev Mac; the
-installed app has package `com.github.libretube.debug`. `local.properties`
+installed app has package `com.github.libretube.next.debug`. `local.properties`
 (SDK path) is machine-local. Some device ROMs hide `Log.d`; use `Log.w`/`Log.i` for logs that must show in `adb logcat`.

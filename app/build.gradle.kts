@@ -76,7 +76,8 @@ android {
 
         getByName("debug") {
             isDebuggable = true
-            applicationIdSuffix = ".debug"
+            // the debug app sits next to the release app (com.github.libretube.next)
+            applicationIdSuffix = ".next.debug"
             resValue("string", "app_name", "LibreTube-Next Debug")
         }
     }
