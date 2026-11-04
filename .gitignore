@@ -31,3 +31,16 @@ google-services.json
 # Android Profiling
 *.hprof
 .DS_Store
+
+# Local secrets and personal data (never commit)
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.zip
+*.tar
+
+# Kotlin compiler session files
+.kotlin/

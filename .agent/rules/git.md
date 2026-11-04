@@ -44,7 +44,9 @@ Work directly on `master` and push it to `origin`; no other work branches
 
 ## Tags & releases
 
-No releases from this fork; the app is used as a debug build on one phone.
+Releases are built by `.github/workflows/build-release.yml` from an annotated tag `vX.Y.Z`
+on the release/stable branch; the tag message is the release note. The release app id is
+`com.github.libretube.next`, signed with the release keystore from the repo secrets.
 
 ## Never commit
 

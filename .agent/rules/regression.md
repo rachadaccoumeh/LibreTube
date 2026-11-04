@@ -12,7 +12,7 @@ change — that is what makes the payment permanent.
 
 ## Device data
 
-**An app update could have wiped ~29 GB of downloads.**
+**An app update could have wiped all downloads.**
 Downloads live in the app-private external folder
 (`DownloadHelper.getDownloadDir`), which Android deletes on uninstall. An
 install signed with another key fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`,
@@ -75,6 +75,6 @@ destroys the video surface.
 
 ## Logging
 
-**`Log.d` lines never appear in `adb logcat` on the test phone.**
-The Honor ROM drops debug-level app logs.
+**`Log.d` lines may not appear in `adb logcat`.**
+Some device ROMs drop debug-level app logs.
 **Guard:** use `Log.w`/`Log.i` for diagnostics that must show on the device.
