@@ -389,7 +389,10 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             return true
         }
 
-        return isTouchDownInsideHitArea && super.onTouchEvent(event)
+        val handled = isTouchDownInsideHitArea && super.onTouchEvent(event)
+        // the expanded player covers the screen: no touch may reach the screen behind it,
+        // e.g. a status bar swipe on the top right corner opened the main menu
+        return handled || (!isAudioPlayer && !startedMinimized)
     }
 
     companion object {
