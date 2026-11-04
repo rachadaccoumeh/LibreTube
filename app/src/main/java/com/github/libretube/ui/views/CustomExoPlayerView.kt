@@ -28,6 +28,7 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
 import androidx.core.os.postDelayed
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
@@ -402,7 +403,7 @@ class CustomExoPlayerView(
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
-                keepScreenOn = isPlaying
+                updateKeepScreenOn(player)
             }
         })
 
@@ -412,7 +413,7 @@ class CustomExoPlayerView(
 
         binding.exoProgress.setPlayer(player)
 
-        if (player.isPlaying) keepScreenOn = true
+        updateKeepScreenOn(player)
 
         // locking the player
         binding.lockPlayer.setOnClickListener {
@@ -1377,8 +1378,11 @@ class CustomExoPlayerView(
      * Add extra margin to the top bar to not overlap the status bar.
      */
     fun updateTopBarMargin() {
+        // the status bar can be swiped in over the fullscreen player, so keep the buttons below it
+        val statusBarHeight = ViewCompat.getRootWindowInsets(this)
+            ?.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars())?.top ?: 0
         binding.topBar.updateLayoutParams<MarginLayoutParams> {
-            topMargin = (if (isFullscreen()) 18f else 0f).dpToPx()
+            topMargin = if (isFullscreen()) maxOf(18f.dpToPx(), statusBarHeight) else 0
         }
     }
 
@@ -1603,6 +1607,19 @@ class CustomExoPlayerView(
         return width to height
     }
 
+    private val allowScreenOffTask = Runnable { keepScreenOn = false }
+
+    /**
+     * Keeps the screen on while the video plays or loads. A video that loads for a long time is
+     * likely stuck, so the phone may sleep then.
+     */
+    private fun updateKeepScreenOn(player: Player) {
+        removeCallbacks(allowScreenOffTask)
+        val isLoading = player.playWhenReady && player.playbackState == Player.STATE_BUFFERING
+        keepScreenOn = player.isPlaying || isLoading
+        if (isLoading) postDelayed(allowScreenOffTask, LOADING_SCREEN_ON_TIMEOUT_MS)
+    }
+
     var alreadySetDefaultSubtitle: Boolean = false
     fun onPlaybackEvents(player: Player, events: Player.Events) {
         if (events.containsAny(
@@ -1615,8 +1632,7 @@ class CustomExoPlayerView(
                 PlayerHelper.getPlayPauseActionIcon(player)
             )
 
-            // keep screen on if the video is playing
-            keepScreenOn = player.isPlaying == true
+            updateKeepScreenOn(player)
         }
 
         if (events.contains(Player.EVENT_RENDERED_FIRST_FRAME)) {
@@ -1649,6 +1665,7 @@ class CustomExoPlayerView(
     fun getWindow(): Window = currentWindow ?: activity.window
 
     companion object {
+        private const val LOADING_SCREEN_ON_TIMEOUT_MS = 10 * 60 * 1000L
         private const val PROGRESS_DOT_SIZE_DP = 12f
         private const val PROGRESS_LINE_TOUCH_HEIGHT_DP = 20f
         private const val HIDE_CONTROLLER_TOKEN = "hideController"
