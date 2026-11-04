@@ -66,7 +66,7 @@ android {
             isShrinkResources = true
             // fork releases install next to the official LibreTube instead of conflicting with it
             applicationIdSuffix = ".next"
-            resValue("string", "app_name", "LibreTube Next")
+            resValue("string", "app_name", "LibreTube-Next")
             signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile != null }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -77,7 +77,7 @@ android {
         getByName("debug") {
             isDebuggable = true
             applicationIdSuffix = ".debug"
-            resValue("string", "app_name", "LibreTube Debug")
+            resValue("string", "app_name", "LibreTube-Next Debug")
         }
     }
 

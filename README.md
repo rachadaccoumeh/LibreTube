@@ -13,7 +13,7 @@ This is an actively maintained fork of [LibreTube](https://github.com/libre-tube
 regularly and adds a player and app experience that feels like the current YouTube app, faster playback and
 reliable downloads.
 
-The app installs as **LibreTube Next** (`com.github.libretube.next`), next to the official LibreTube, so you can
+The app installs as **LibreTube-Next** (`com.github.libretube.next`), next to the official LibreTube, so you can
 keep both.
 
 ### What is new in LibreTube Next
