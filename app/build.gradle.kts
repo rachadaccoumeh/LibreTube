@@ -65,8 +65,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             // fork releases install next to the official LibreTube instead of conflicting with it
-            applicationIdSuffix = ".fork"
-            resValue("string", "app_name", "LibreTube Fork")
+            applicationIdSuffix = ".next"
+            resValue("string", "app_name", "LibreTube Next")
             signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile != null }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

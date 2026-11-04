@@ -7,16 +7,16 @@
 
 </div>
 
-## LibreTube Fork — actively maintained, with a modern YouTube-like UI
+## LibreTube Next — actively maintained, with a modern YouTube-like UI
 
 This is an actively maintained fork of [LibreTube](https://github.com/libre-tube/LibreTube). It follows upstream
 regularly and adds a player and app experience that feels like the current YouTube app, faster playback and
 reliable downloads.
 
-The app installs as **LibreTube Fork** (`com.github.libretube.fork`), next to the official LibreTube, so you can
+The app installs as **LibreTube Next** (`com.github.libretube.next`), next to the official LibreTube, so you can
 keep both.
 
-### What is new in this fork
+### What is new in LibreTube Next
 
 **Player**
 - YouTube-style controls: round play, previous and next buttons, time pill and fullscreen button at the bottom edge

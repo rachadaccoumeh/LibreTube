@@ -3,7 +3,6 @@ package com.github.libretube.ui.activities
 import android.content.Intent
 import android.view.MenuItem
 import com.github.libretube.R
-import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.ui.base.BaseActivity
 import com.github.libretube.ui.fragments.AudioPlayerFragment
 import com.github.libretube.ui.fragments.PlayerFragment
@@ -54,16 +53,6 @@ abstract class AbstractPlayerHostActivity: BaseActivity() {
             R.id.action_help -> {
                 val helpIntent = Intent(this, HelpActivity::class.java)
                 startActivity(helpIntent)
-                true
-            }
-
-            R.id.action_donate -> {
-                IntentHelper.openLinkFromHref(
-                    this,
-                    supportFragmentManager,
-                    AboutActivity.DONATE_URL,
-                    forceDefaultOpen = true
-                )
                 true
             }
 
