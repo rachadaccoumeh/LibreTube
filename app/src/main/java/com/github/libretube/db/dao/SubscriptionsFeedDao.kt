@@ -24,6 +24,9 @@ interface SubscriptionsFeedDao {
     @Update
     suspend fun update(feedItem: SubscriptionsFeedItem)
 
+    @Query("SELECT insertedAt FROM feedItem WHERE videoId = :videoId")
+    suspend fun getInsertedAt(videoId: String): Long?
+
     @Query("SELECT EXISTS (SELECT * FROM feedItem WHERE videoId = :videoId)")
     suspend fun contains(videoId: String): Boolean
 

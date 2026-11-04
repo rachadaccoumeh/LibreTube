@@ -41,7 +41,10 @@ class LocalFeedRepository : FeedRepository {
     private val durationBetweenAutomaticRefreshes = Duration.ofDays(1)
 
     override suspend fun submitFeedItemChange(feedItem: SubscriptionsFeedItem) {
-        DatabaseHolder.Database.feedDao().update(feedItem)
+        val dao = DatabaseHolder.Database.feedDao()
+        // keep the first fetch time, otherwise a watched video shows as NEW again
+        val insertedAt = dao.getInsertedAt(feedItem.videoId) ?: return
+        dao.update(feedItem.copy(insertedAt = insertedAt))
     }
 
     override suspend fun removeChannel(channelId: String) {

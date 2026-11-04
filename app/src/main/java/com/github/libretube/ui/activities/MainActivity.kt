@@ -352,7 +352,10 @@ class MainActivity : AbstractPlayerHostActivity() {
             val lastSeenVideoIndex = feed.orEmpty()
                 .filter { !it.isUpcoming }
                 .indexOfFirst { it.uploaded <= lastCheckedFeedTime }
-            if (lastSeenVideoIndex < 1) return@observe
+            if (lastSeenVideoIndex < 1) {
+                binding.bottomNav.removeBadge(R.id.subscriptionsFragment)
+                return@observe
+            }
 
             binding.bottomNav.getOrCreateBadge(R.id.subscriptionsFragment).apply {
                 number = lastSeenVideoIndex
