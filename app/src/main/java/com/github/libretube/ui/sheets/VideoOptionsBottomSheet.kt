@@ -161,8 +161,8 @@ class VideoOptionsBottomSheet : BaseBottomSheet() {
         setTitle(streamItem.title)
 
         var optionsList = buildList {
-            add(R.string.addToPlaylist)
             add(R.string.addToWatchLater)
+            add(R.string.addToPlaylist)
             if (!streamItem.isLive) add(R.string.download)
             add(R.string.share)
         }
@@ -185,7 +185,11 @@ class VideoOptionsBottomSheet : BaseBottomSheet() {
         // these options are only available for other videos than the currently playing one
         if (PlayingQueue.getCurrent()?.url?.toID() != videoId) {
             getOptionsForNotActivePlayback(videoId) { addedOptions ->
-                optionsList = addedOptions + optionsList
+                // watch later stays the first option
+                val watchLater = optionsList.first {
+                    it == R.string.addToWatchLater || it == R.string.removeFromWatchLater
+                }
+                optionsList = listOf(watchLater) + addedOptions + (optionsList - watchLater)
 
                 setSimpleItems(optionsList.map { getString(it) }) { which ->
                     onOptionSelect(optionsList[which], videoId, playlistId)

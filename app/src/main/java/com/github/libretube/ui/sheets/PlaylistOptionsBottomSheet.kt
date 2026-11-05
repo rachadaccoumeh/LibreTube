@@ -10,6 +10,8 @@ import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.constants.IntentData
 import com.github.libretube.enums.ImportFormat
 import com.github.libretube.enums.PlaylistType
+import com.github.libretube.helpers.PreferenceHelper
+import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.enums.ShareObjectType
 import com.github.libretube.extensions.serializable
 import com.github.libretube.extensions.toID
@@ -58,6 +60,10 @@ class PlaylistOptionsBottomSheet : BaseBottomSheet() {
                 )
             }
         } else {
+            // only a playlist that is not the watch later one can become it
+            if (PreferenceHelper.getString(PreferenceKeys.WATCH_LATER_PLAYLIST_ID, "") != playlistId) {
+                optionsList.add(R.string.use_as_watch_later)
+            }
             optionsList.add(R.string.export_playlist)
             optionsList.add(R.string.renamePlaylist)
             optionsList.add(R.string.change_playlist_description)
@@ -116,6 +122,11 @@ class PlaylistOptionsBottomSheet : BaseBottomSheet() {
                 )
                 // using parentFragmentManager, childFragmentManager doesn't work here
                 newShareDialog.show(parentFragmentManager, ShareDialog::class.java.name)
+            }
+
+            R.string.use_as_watch_later -> {
+                PreferenceHelper.putString(PreferenceKeys.WATCH_LATER_PLAYLIST_ID, playlistId)
+                context?.toastFromMainDispatcher(R.string.now_watch_later)
             }
 
             R.string.deletePlaylist -> {

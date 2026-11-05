@@ -52,6 +52,8 @@
     <string name="addToWatchLater">Add to watch later</string>
     <string name="removeFromWatchLater">Remove from watch later</string>
     <string name="watch_later">Watch later</string>
+    <string name="use_as_watch_later">Use as watch later</string>
+    <string name="now_watch_later">This playlist is now the watch later playlist</string>
     <string name="added_to_watch_later">Added to watch later</string>
     <string name="removed_from_watch_later">Removed from watch later</string>
     <string name="watch_later_playlist">Watch later playlist</string>

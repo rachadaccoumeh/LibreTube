@@ -61,9 +61,9 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
         val incompleteIds = arguments?.getIntArray("incompleteIds")
 
         val options = mutableListOf(
+            R.string.addToWatchLater,
             R.string.playOnBackground,
             R.string.addToPlaylist,
-            R.string.addToWatchLater,
             R.string.share,
             R.string.verify_download,
             R.string.delete,
