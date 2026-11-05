@@ -22,6 +22,7 @@ import com.github.libretube.constants.IntentData
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.FragmentLibraryBinding
 import com.github.libretube.enums.PlaylistType
+import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.ceilHalf
 import com.github.libretube.extensions.dpToPx
@@ -88,6 +89,14 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
 
         binding.downloads.setOnClickListener {
             findNavController().navigate(R.id.action_libraryFragment_to_downloadsFragment)
+        }
+
+        binding.watchLater.setOnClickListener {
+            lifecycleScope.launch {
+                val playlistId = runCatching { PlaylistsHelper.getWatchLaterPlaylistId() }.getOrNull()
+                    ?: return@launch
+                NavigationHelper.navigatePlaylist(requireContext(), playlistId, PlaylistType.PRIVATE)
+            }
         }
 
         val navBarItems = NavBarHelper.getNavBarItemPreference(requireContext())

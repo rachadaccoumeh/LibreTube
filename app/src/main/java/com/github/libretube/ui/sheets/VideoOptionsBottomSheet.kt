@@ -7,6 +7,7 @@ import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.NavHostFragment
 import com.github.libretube.R
+import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.api.obj.WatchHistoryEntryMetadata
 import com.github.libretube.constants.IntentData
@@ -64,6 +65,15 @@ class VideoOptionsBottomSheet : BaseBottomSheet() {
                 }.show(
                     parentFragmentManager,
                     AddToPlaylistDialog::class.java.name
+                )
+            }
+
+            R.string.addToWatchLater, R.string.removeFromWatchLater -> {
+                val context = requireContext()
+                val added = runCatching { PlaylistsHelper.toggleWatchLater(streamItem) }
+                    .getOrElse { context.toastFromMainDispatcher(R.string.unknown_error); return }
+                context.toastFromMainDispatcher(
+                    if (added) R.string.added_to_watch_later else R.string.removed_from_watch_later
                 )
             }
 
@@ -152,12 +162,24 @@ class VideoOptionsBottomSheet : BaseBottomSheet() {
 
         var optionsList = buildList {
             add(R.string.addToPlaylist)
+            add(R.string.addToWatchLater)
             if (!streamItem.isLive) add(R.string.download)
             add(R.string.share)
         }
 
         setSimpleItems(optionsList.map { getString(it) }) { which ->
             onOptionSelect(optionsList[which], videoId, playlistId)
+        }
+
+        // the watch later option shows whether the video is already in that playlist
+        lifecycleScope.launch {
+            if (runCatching { PlaylistsHelper.indexInWatchLater(videoId) }.getOrDefault(-1) < 0) return@launch
+            optionsList = optionsList.map {
+                if (it == R.string.addToWatchLater) R.string.removeFromWatchLater else it
+            }
+            setSimpleItems(optionsList.map { getString(it) }) { which ->
+                onOptionSelect(optionsList[which], videoId, playlistId)
+            }
         }
 
         // these options are only available for other videos than the currently playing one

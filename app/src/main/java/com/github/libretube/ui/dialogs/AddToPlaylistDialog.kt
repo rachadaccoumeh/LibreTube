@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.libretube.R
 import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.obj.Playlists
+import com.github.libretube.enums.PlaylistType
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.BottomSheetAddToPlaylistBinding
@@ -74,8 +75,8 @@ class AddToPlaylistDialog : ExpandedBottomSheet(R.layout.bottom_sheet_add_to_pla
                 if (playlists.isEmpty()) View.VISIBLE else View.GONE
 
             if (playlists.isNotEmpty()) {
-                adapter = AddToPlaylistAdapter(playlists) { playlist ->
-                    addToPlaylist(playlist)
+                adapter = AddToPlaylistAdapter(playlists) { playlist, isAdded ->
+                    if (isAdded) removeFromPlaylist(playlist) else addToPlaylist(playlist)
                 }
                 binding.playlistsRecycler.layoutManager = LinearLayoutManager(context)
                 binding.playlistsRecycler.adapter = adapter
@@ -110,6 +111,30 @@ class AddToPlaylistDialog : ExpandedBottomSheet(R.layout.bottom_sheet_add_to_pla
                         adapter?.markAsAdded(playlistId)
                         adapter?.notifyDataSetChanged()
                     }
+                }
+            }
+        }
+    }
+
+    private fun removeFromPlaylist(playlist: Playlists) {
+        val videoId = videoInfo?.url?.toID() ?: return
+
+        lifecycleScope.launch {
+            runCatching {
+                val index = PlaylistsHelper.getPlaylist(playlist.id!!, PlaylistType.PRIVATE)
+                    .relatedStreams.indexOfFirst { it.url?.toID() == videoId }
+                if (index >= 0) PlaylistsHelper.removeFromPlaylist(playlist.id!!, videoId, index)
+            }.onSuccess {
+                with(binding.root.context) {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.removed_from_playlist, playlist.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }.onFailure {
+                with(binding.root.context) {
+                    Toast.makeText(this, R.string.unknown_error, Toast.LENGTH_SHORT).show()
                 }
             }
         }

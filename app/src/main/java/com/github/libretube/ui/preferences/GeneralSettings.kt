@@ -9,6 +9,9 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.github.libretube.BuildConfig
 import com.github.libretube.R
+import kotlinx.coroutines.launch
+import com.github.libretube.api.PlaylistsHelper
+import androidx.lifecycle.lifecycleScope
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.extensions.toastFromMainThread
 import com.github.libretube.helpers.LocaleHelper
@@ -22,6 +25,15 @@ class GeneralSettings : BasePreferenceFragment() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.general_settings, rootKey)
+
+        // the list of playlists is loaded from the database, so it is filled at runtime
+        findPreference<ListPreference>(PreferenceKeys.WATCH_LATER_PLAYLIST_ID)?.let { pref ->
+            lifecycleScope.launch {
+                val playlists = runCatching { PlaylistsHelper.getPlaylists() }.getOrDefault(emptyList())
+                pref.entries = playlists.map { it.name }.toTypedArray()
+                pref.entryValues = playlists.map { it.id }.toTypedArray()
+            }
+        }
 
         val language = findPreference<ListPreference>("language")
         if (!LocaleHelper.isPerAppLocaleSettingSupported()) {

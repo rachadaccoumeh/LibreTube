@@ -6,6 +6,9 @@ import androidx.core.os.bundleOf
 import androidx.fragment.app.setFragmentResult
 import androidx.media3.common.util.UnstableApi
 import com.github.libretube.R
+import androidx.lifecycle.lifecycleScope
+import com.github.libretube.extensions.toastFromMainDispatcher
+import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.IntentData
 import com.github.libretube.enums.ShareObjectType
@@ -60,6 +63,7 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
         val options = mutableListOf(
             R.string.playOnBackground,
             R.string.addToPlaylist,
+            R.string.addToWatchLater,
             R.string.share,
             R.string.verify_download,
             R.string.delete,
@@ -87,7 +91,7 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
             }
         }
 
-        setSimpleItems(options.map { getString(it) }) { which ->
+        val onSelect: suspend (Int) -> Unit = { which ->
             val playerData = PlayerData(
                 videoId,
                 playlistId = playlistId,
@@ -107,6 +111,17 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
                         parentFragmentManager,
                         AddToPlaylistDialog::class.java.name
                     )
+                }
+
+                R.string.addToWatchLater, R.string.removeFromWatchLater -> {
+                    val context = requireContext()
+                    runCatching { PlaylistsHelper.toggleWatchLater(streamItem) }
+                        .onSuccess { added ->
+                            context.toastFromMainDispatcher(
+                                if (added) R.string.added_to_watch_later else R.string.removed_from_watch_later
+                            )
+                        }
+                        .onFailure { context.toastFromMainDispatcher(R.string.unknown_error) }
                 }
 
                 R.string.go_to_video -> {
@@ -177,6 +192,14 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
                     }
                 }
             }
+        }
+        setSimpleItems(options.map { getString(it) }, listener = onSelect)
+
+        // the watch later option shows whether the video is already in that playlist
+        lifecycleScope.launch {
+            if (runCatching { PlaylistsHelper.indexInWatchLater(videoId) }.getOrDefault(-1) < 0) return@launch
+            options[options.indexOf(R.string.addToWatchLater)] = R.string.removeFromWatchLater
+            setSimpleItems(options.map { getString(it) }, listener = onSelect)
         }
 
         super.onCreate(savedInstanceState)

@@ -10,7 +10,7 @@ import com.github.libretube.helpers.ImageHelper
 
 class AddToPlaylistAdapter(
     val playlists: List<Playlists>,
-    val onPlaylistClick: (Playlists) -> Unit
+    val onPlaylistClick: (playlist: Playlists, isAdded: Boolean) -> Unit
 ) : RecyclerView.Adapter<AddToPlaylistAdapter.PlaylistViewHolder>() {
 
     private val addedIds = mutableSetOf<String?>()
@@ -39,9 +39,8 @@ class AddToPlaylistAdapter(
             )
 
             root.setOnClickListener {
-                if (isAdded) return@setOnClickListener
-                onPlaylistClick(playlist)
-                addedIds.add(playlist.id)
+                onPlaylistClick(playlist, isAdded)
+                if (isAdded) addedIds.remove(playlist.id) else addedIds.add(playlist.id)
                 notifyItemChanged(holder.bindingAdapterPosition)
             }
         }

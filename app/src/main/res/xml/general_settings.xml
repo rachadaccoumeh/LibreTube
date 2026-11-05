@@ -44,6 +44,12 @@
             app:summary="@string/related_streams_summary"
             app:title="@string/related_streams" />
 
+        <ListPreference
+            android:icon="@drawable/ic_bookmark_outlined"
+            android:summary="@string/watch_later_playlist_summary"
+            app:key="watch_later_playlist_id"
+            app:title="@string/watch_later_playlist" />
+
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/downloads">

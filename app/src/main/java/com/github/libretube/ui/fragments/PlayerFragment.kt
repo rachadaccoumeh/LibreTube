@@ -60,6 +60,8 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.libretube.R
+import com.github.libretube.extensions.toastFromMainDispatcher
+import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.JsonHelper
 import com.github.libretube.api.obj.ChapterSegment
 import com.github.libretube.api.obj.Segment
@@ -837,6 +839,21 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             AddToPlaylistDialog().apply {
                 arguments = bundleOf(IntentData.videoInfo to streams.toStreamItem(videoId))
             }.show(childFragmentManager, AddToPlaylistDialog::class.java.name)
+        }
+        // long press on save: add to or remove from the watch later playlist without a dialog
+        binding.relPlayerSave.setOnLongClickListener {
+            if (!::streams.isInitialized) return@setOnLongClickListener false
+            val context = requireContext()
+            lifecycleScope.launch {
+                runCatching { PlaylistsHelper.toggleWatchLater(streams.toStreamItem(videoId)) }
+                    .onSuccess { added ->
+                        context.toastFromMainDispatcher(
+                            if (added) R.string.added_to_watch_later else R.string.removed_from_watch_later
+                        )
+                    }
+                    .onFailure { context.toastFromMainDispatcher(R.string.unknown_error) }
+            }
+            true
         }
 
         playerControlsBinding.skipPrev.setOnClickListener {

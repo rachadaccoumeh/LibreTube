@@ -9,6 +9,8 @@ import com.github.libretube.R
 import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.IntentData
+import com.github.libretube.api.PlaylistsHelper
+import com.github.libretube.extensions.toID
 import com.github.libretube.extensions.toastFromMainDispatcher
 import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.helpers.PreferenceHelper
@@ -51,6 +53,19 @@ class AddToPlaylistActivity : BaseActivity() {
                 }
             } else {
                 StreamItem(videoId)
+            }
+
+            // opened through the "add to watch later" share target (an alias of this activity)
+            if (intent.component?.className?.endsWith("AddToWatchLaterActivity") == true) {
+                runCatching {
+                    val videoId = videoInfo.url!!.toID()
+                    if (PlaylistsHelper.indexInWatchLater(videoId) < 0) {
+                        PlaylistsHelper.addToPlaylist(PlaylistsHelper.getWatchLaterPlaylistId(), videoInfo)
+                    }
+                }.onSuccess { toastFromMainDispatcher(R.string.added_to_watch_later) }
+                    .onFailure { toastFromMainDispatcher(R.string.unknown_error) }
+                withContext(Dispatchers.Main) { finish() }
+                return@launch
             }
 
             withContext(Dispatchers.Main) {

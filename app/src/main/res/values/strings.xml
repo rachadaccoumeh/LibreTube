@@ -49,6 +49,14 @@
     <string name="playlistName">Playlist name</string>
     <string name="emptyPlaylistName">The playlist name can\'t be empty</string>
     <string name="addToPlaylist">Add to playlist</string>
+    <string name="addToWatchLater">Add to watch later</string>
+    <string name="removeFromWatchLater">Remove from watch later</string>
+    <string name="watch_later">Watch later</string>
+    <string name="added_to_watch_later">Added to watch later</string>
+    <string name="removed_from_watch_later">Removed from watch later</string>
+    <string name="watch_later_playlist">Watch later playlist</string>
+    <string name="watch_later_playlist_summary">The playlist that \"add to watch later\" uses</string>
+    <string name="removed_from_playlist">Removed from playlist %1$s</string>
     <string name="success">Done.</string>
     <string name="fail">Failed :(</string>
     <string name="about">About</string>

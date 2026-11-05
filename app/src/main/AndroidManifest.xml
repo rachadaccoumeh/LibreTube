@@ -115,6 +115,21 @@
 
         </activity>
 
+        <!-- second share target: same activity, adds straight to the watch later playlist -->
+        <activity-alias
+            android:name=".ui.activities.AddToWatchLaterActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/addToWatchLater"
+            android:targetActivity=".ui.activities.AddToPlaylistActivity">
+
+            <intent-filter android:label="@string/addToWatchLater">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
         <activity
             android:name=".ui.activities.DownloadActivity"
             android:enabled="true"

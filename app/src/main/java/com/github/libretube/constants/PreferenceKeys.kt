@@ -124,6 +124,7 @@ object PreferenceKeys {
     const val ERROR_LOG = "error_log"
     const val AUTH_PREF_FILE = "auth"
     const val SELECTED_CHANNEL_GROUP = "selected_channel_group"
+    const val WATCH_LATER_PLAYLIST_ID = "watch_later_playlist_id"
     const val SELECTED_DOWNLOAD_SORT_TYPE = "selected_download_sort_type"
     const val SELECTED_DOWNLOAD_PLAYLIST_SORT_TYPE = "selected_download_playlist_sort_type"
     const val LAST_SHOWN_INFO_MESSAGE_VERSION_CODE = "last_shown_info_message_version"

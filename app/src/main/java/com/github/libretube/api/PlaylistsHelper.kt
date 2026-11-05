@@ -1,10 +1,13 @@
 package com.github.libretube.api
 
+import com.github.libretube.LibreTubeApp
+import com.github.libretube.R
 import com.github.libretube.api.obj.Playlist
 import com.github.libretube.api.obj.Playlists
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.enums.PlaylistType
+import com.github.libretube.extensions.toID
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.obj.PipedImportPlaylist
 import com.github.libretube.repo.UserDataRepository
@@ -71,6 +74,43 @@ object PlaylistsHelper {
 
     suspend fun removeFromPlaylist(playlistId: String, videoId: String, index: Int) =
         userDataRepository.removeFromPlaylist(playlistId, videoId, index)
+
+    /**
+     * The playlist chosen in the settings for "watch later", or a new one named "Watch later"
+     * if none is chosen or the chosen one was deleted.
+     */
+    suspend fun getWatchLaterPlaylistId(): String {
+        val savedId = PreferenceHelper.getString(PreferenceKeys.WATCH_LATER_PLAYLIST_ID, "")
+        if (getPlaylists().any { it.id == savedId }) return savedId
+
+        val id = createPlaylist(LibreTubeApp.instance.getString(R.string.watch_later))
+            ?: throw IllegalStateException("could not create the watch later playlist")
+        PreferenceHelper.putString(PreferenceKeys.WATCH_LATER_PLAYLIST_ID, id)
+        return id
+    }
+
+    /** @return the index of the video in the watch later playlist, or -1 */
+    suspend fun indexInWatchLater(videoId: String): Int {
+        val playlistId = getWatchLaterPlaylistId()
+        return getPlaylist(playlistId, PlaylistType.PRIVATE).relatedStreams
+            .indexOfFirst { it.url?.toID() == videoId }
+    }
+
+    /**
+     * Adds the video to the watch later playlist, or removes it if it is already there.
+     *
+     * @return true if the video was added, false if it was removed
+     */
+    suspend fun toggleWatchLater(video: StreamItem): Boolean {
+        val videoId = video.url!!.toID()
+        val index = indexInWatchLater(videoId)
+        if (index >= 0) {
+            removeFromPlaylist(getWatchLaterPlaylistId(), videoId, index)
+            return false
+        }
+        addToPlaylist(getWatchLaterPlaylistId(), video)
+        return true
+    }
 
     suspend fun importPlaylists(playlists: List<PipedImportPlaylist>) =
         userDataRepository.importPlaylists(playlists)
