@@ -1444,7 +1444,9 @@ class CustomExoPlayerView(
         if (!PlayerHelper.pinchGestureEnabled) return
         val surface = videoSurfaceView ?: return
 
-        val scale = (surface.scaleX * scaleFactor).coerceIn(MIN_PINCH_SCALE, MAX_PINCH_SCALE)
+        // like YouTube: the first pinch out only fills the screen, free zoom starts from there
+        val maxScale = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) FILL_PINCH_SCALE else MAX_PINCH_SCALE
+        val scale = (surface.scaleX * scaleFactor).coerceIn(MIN_PINCH_SCALE, maxScale)
         surface.scaleX = scale
         surface.scaleY = scale
 
@@ -1462,6 +1464,10 @@ class CustomExoPlayerView(
             resetPinchZoom()
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             subtitleView?.setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+        } else if (surface.scaleX > 1f && resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
+            resetPinchZoom()
+            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            if (isFullscreen()) subtitleView?.setBottomPaddingFraction(SUBTITLE_BOTTOM_PADDING_FRACTION)
         }
     }
 
@@ -1676,6 +1682,7 @@ class CustomExoPlayerView(
         private const val SUBTITLE_BOTTOM_PADDING_FRACTION = 0.158f
         private const val MIN_PINCH_SCALE = 0.7f
         private const val MAX_PINCH_SCALE = 4f
+        private const val FILL_PINCH_SCALE = 1.1f
         private const val PINCH_RESET_DURATION = 200L
         private const val ANIMATION_DURATION = 100L
         private const val AUTO_HIDE_CONTROLLER_DELAY = 2000L
