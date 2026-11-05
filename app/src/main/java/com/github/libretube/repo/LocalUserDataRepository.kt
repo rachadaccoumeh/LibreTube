@@ -26,7 +26,8 @@ class LocalUserDataRepository : UserDataRepository {
         return Playlist(
             name = relation.playlist.name,
             description = relation.playlist.description,
-            thumbnailUrl = relation.playlist.thumbnailUrl,
+            // the newest video is the playlist cover, the stored url is the oldest one
+            thumbnailUrl = relation.videos.lastOrNull()?.thumbnailUrl ?: relation.playlist.thumbnailUrl,
             videos = relation.videos.size,
             relatedStreams = relation.videos.map { it.toStreamItem() }
         )
@@ -39,7 +40,7 @@ class LocalUserDataRepository : UserDataRepository {
                     id = it.playlist.id.toString(),
                     name = it.playlist.name,
                     shortDescription = it.playlist.description,
-                    thumbnail = it.playlist.thumbnailUrl,
+                    thumbnail = it.videos.lastOrNull()?.thumbnailUrl ?: it.playlist.thumbnailUrl,
                     videos = it.videos.size.toLong()
                 )
             }
