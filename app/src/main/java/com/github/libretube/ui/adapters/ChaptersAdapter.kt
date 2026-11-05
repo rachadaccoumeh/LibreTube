@@ -15,13 +15,15 @@ import com.github.libretube.ui.viewholders.ChaptersViewHolder
 class ChaptersAdapter(
     var chapters: List<ChapterSegment>,
     private val videoDurationSeconds: Long,
+    // chapter_card has the same ids, so the binding of chapters_row also fits it
+    private val layoutRes: Int = R.layout.chapters_row,
     private val seekTo: (Long) -> Unit
 ) : RecyclerView.Adapter<ChaptersViewHolder>() {
     private var selectedPosition = 0
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChaptersViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
-        val binding = ChaptersRowBinding.inflate(layoutInflater, parent, false)
+        val binding = ChaptersRowBinding.bind(layoutInflater.inflate(layoutRes, parent, false))
         return ChaptersViewHolder(binding)
     }
 

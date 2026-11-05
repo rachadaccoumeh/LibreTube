@@ -89,6 +89,20 @@
 
             </HorizontalScrollView>
 
+            <!-- chapters of the video, hidden when the video has none -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/chapters_rec_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:clipToPadding="false"
+                android:orientation="horizontal"
+                android:paddingHorizontal="6dp"
+                android:visibility="gone"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                tools:listitem="@layout/chapter_card"
+                tools:visibility="visible" />
+
             <LinearLayout
                 android:id="@+id/player_channel"
                 android:layout_width="match_parent"

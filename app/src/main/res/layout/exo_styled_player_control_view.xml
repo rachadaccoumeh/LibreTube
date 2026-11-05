@@ -222,11 +222,31 @@
                 android:padding="5dp"
                 app:strokeWidth="0dp">
 
-                <TextView
-                    android:id="@+id/seekbar_preview_position"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="5dp" />
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/seekbar_preview_position"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="5dp" />
+
+                    <!-- name of the chapter at the scrubbed position -->
+                    <TextView
+                        android:id="@+id/seekbar_preview_chapter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="5dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:maxWidth="130dp"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 

@@ -114,6 +114,7 @@ import com.github.libretube.ui.extensions.setupSubscriptionButton
 import com.github.libretube.ui.interfaces.CustomPlayerCallback
 import com.github.libretube.ui.interfaces.TimeFrameReceiver
 import com.github.libretube.ui.listeners.SeekbarPreviewListener
+import com.github.libretube.ui.adapters.ChaptersAdapter
 import com.github.libretube.ui.models.ChaptersViewModel
 import com.github.libretube.ui.models.CommentsViewModel
 import com.github.libretube.ui.models.CommonPlayerViewModel
@@ -509,6 +510,21 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         chaptersViewModel.chaptersLiveData.observe(viewLifecycleOwner) {
             binding.player.setCurrentChapterName()
             playerControlsBinding.exoProgress.setChapters(it.orEmpty())
+
+            // chapters row under the video, a tap jumps to the chapter
+            val chapters = it.orEmpty()
+            binding.chaptersRecView.isVisible = chapters.isNotEmpty()
+            binding.chaptersRecView.adapter = ChaptersAdapter(
+                chapters,
+                if (::streams.isInitialized) streams.duration else 0L,
+                R.layout.chapter_card
+            ) { position -> if (::playerController.isInitialized) playerController.seekTo(position) }
+        }
+
+        chaptersViewModel.currentChapterIndex.observe(viewLifecycleOwner) { index ->
+            if (index < 0) return@observe
+            (binding.chaptersRecView.adapter as? ChaptersAdapter)?.updateSelectedPosition(index)
+            binding.chaptersRecView.smoothScrollToPosition(index)
         }
 
         viewModel.segments.observe(viewLifecycleOwner) { segments ->
@@ -1525,7 +1541,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 timeFrameReceiver,
                 playerControlsBinding,
                 streams.duration * 1000
-            )
+            ) { chaptersViewModel.chapters }
 
             seekBarPreviewListener = listener
             playerControlsBinding.exoProgress.addSeekBarListener(listener)
