@@ -29,7 +29,6 @@ class AboutActivity : BaseActivity() {
             onBackPressedDispatcher.onBackPressed()
         }
 
-        setupCard(binding.website, WEBSITE_URL)
         setupCard(binding.piped, PIPED_GITHUB_URL)
         setupCard(binding.translate, WEBLATE_URL)
         setupCard(binding.github, GITHUB_URL)
@@ -108,7 +107,6 @@ class AboutActivity : BaseActivity() {
     }
 
     companion object {
-        private const val WEBSITE_URL = "https://libretube.dev"
         const val GITHUB_URL = "https://github.com/rachadaccoumeh/LibreTube"
         private const val PIPED_GITHUB_URL = "https://github.com/TeamPiped/Piped"
         private const val WEBLATE_URL = "https://hosted.weblate.org/projects/libretube/libretube/"

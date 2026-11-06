@@ -22,17 +22,6 @@
             android:layout_height="wrap_content" />
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/website"
-            style="@style/AboutCard">
-
-            <androidx.appcompat.widget.AppCompatTextView
-                style="@style/AboutItem"
-                android:text="@string/website"
-                app:drawableStartCompat="@drawable/ic_region" />
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
             android:id="@+id/github"
             style="@style/AboutCard">
 
