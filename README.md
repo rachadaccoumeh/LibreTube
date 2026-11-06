@@ -22,8 +22,10 @@ keep both.
 - YouTube-style controls: round play, previous and next buttons, time pill and fullscreen button at the bottom edge
 - Thin progress line on the video edge: white while playing, red with a dot when the controls show; drag it to seek
 - Swipe down on the video to minimize, pull down on the title area for portrait fullscreen, swipe down to leave fullscreen
-- Smooth in-place fullscreen (no black flash), brightness and volume swipes in fullscreen, free pinch zoom and pan
-- The paused video shows its frame when the app opens, instead of a black screen
+- Smooth in-place fullscreen (no black flash), brightness and volume swipes in fullscreen
+- Pinch zoom in two steps like YouTube: the first pinch fills the screen, the next one zooms and pans freely
+- Chapters row under the video (tap to jump) and the chapter name in the seek preview
+- The last video comes back minimized when you reopen the app, and the paused video shows its frame instead of a black screen
 
 **Floating mini player**
 - A small video card that stays on top while you browse the app
@@ -39,6 +41,10 @@ keep both.
 - Verify downloads and a full backup and restore that includes the media files
 - Fixes for downloads that were lost or corrupted in upstream (second quality, resumed SABR downloads)
 
+**Watch later**
+- Add a video to Watch later from every video menu, the player, the share sheet and the Library
+- Pick any playlist as your Watch later list; a Watch later button sits next to Watch history
+
 **Feed and lists**
 - NEW badges in the subscriptions feed and a "mark as caught up" divider
 - 3-dot menu on every video card, a back-to-top button on long lists
@@ -47,6 +53,7 @@ keep both.
 ### Install
 
 Download the APK from the [latest release](https://github.com/rachadaccoumeh/LibreTube/releases/latest) and open it on your phone.
+LibreTube Next is not on F-Droid or Google Play. The app can check this repository for new versions.
 
 ### Contributing
 
