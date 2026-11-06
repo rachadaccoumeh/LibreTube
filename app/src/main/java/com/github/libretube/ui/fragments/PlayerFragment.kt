@@ -573,19 +573,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         }
 
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (commonPlayerViewModel.isFullscreen.value == true) {
-                    // Safety net: ignore back press right after entering fullscreen
-                    val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
-                    if (timeSinceEnter < 500) return
-                    unsetFullscreen()
-                } else {
-                    binding.playerMotionLayout.setTransitionDuration(250)
-                    binding.playerMotionLayout.transitionToEnd()
-                    baseActivity.minimizePlayerContainerLayout()
-                    baseActivity.requestOrientationChange()
-                }
-            }
+            override fun handleOnBackPressed() = exitFullscreenOrMinimize()
 
             override fun handleOnBackProgressed(backEvent: BackEventCompat) {
                 binding.playerMotionLayout.progress = backEvent.progress
@@ -772,13 +760,27 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             )
     }
 
+    private fun exitFullscreenOrMinimize() {
+        if (commonPlayerViewModel.isFullscreen.value == true) {
+            // Safety net: ignore back press right after entering fullscreen
+            val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
+            if (timeSinceEnter < 500) return
+            unsetFullscreen()
+        } else {
+            binding.playerMotionLayout.setTransitionDuration(250)
+            binding.playerMotionLayout.transitionToEnd()
+            baseActivity.minimizePlayerContainerLayout()
+            baseActivity.requestOrientationChange()
+        }
+    }
+
     // actions that don't depend on video information
     private fun initializeOnClickActions() {
         binding.closeImageView.setOnClickListener {
             killPlayerFragment()
         }
         playerControlsBinding.closeImageButton.setOnClickListener {
-            killPlayerFragment()
+            exitFullscreenOrMinimize()
         }
 
         binding.playImageView.setOnClickListener {
