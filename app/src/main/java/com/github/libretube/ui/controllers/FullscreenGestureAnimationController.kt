@@ -49,13 +49,16 @@ class FullscreenGestureAnimationController(
                     currentSwipeDistance = (swipeStartY - positionY).coerceAtLeast(0f)
                     val cappedDistance = currentSwipeDistance.coerceAtMost(SWIPE_DISTANCE_THRESHOLD.toFloat())
 
-                    val scale = if (playerView.isFullscreen()) {
-                        1f - (cappedDistance * SCALE_FACTOR)
+                    if (playerView.isFullscreen()) {
+                        // the mirror of the pull down that enters fullscreen: the video follows the
+                        // finger at half speed towards the top, where the exit puts it
+                        val maxTravel = maxOf(videoFrameView.top, SWIPE_DISTANCE_THRESHOLD / 2).toFloat()
+                        videoFrameView.translationY = -(currentSwipeDistance / 2).coerceAtMost(maxTravel)
                     } else {
-                        1f + (cappedDistance * SCALE_FACTOR)
+                        val scale = 1f + (cappedDistance * SCALE_FACTOR)
+                        videoFrameView.scaleX = scale
+                        videoFrameView.scaleY = scale
                     }
-                    videoFrameView.scaleX = scale
-                    videoFrameView.scaleY = scale
                 }
 
                 SwipeDirection.DOWN -> {
@@ -92,6 +95,7 @@ class FullscreenGestureAnimationController(
             videoFrameView.animate()
                 .scaleX(1f)
                 .scaleY(1f)
+                .translationY(0f)
                 .setInterpolator(interpolator)
                 .setDuration(250)
                 .withEndAction {
@@ -120,6 +124,7 @@ class FullscreenGestureAnimationController(
     fun reset() {
         videoFrameView.scaleX = 1f
         videoFrameView.scaleY = 1f
+        videoFrameView.translationY = 0f
         videoFrameView.pivotX = videoFrameView.width / 2f
         videoFrameView.pivotY = videoFrameView.height / 2f
         resetState()

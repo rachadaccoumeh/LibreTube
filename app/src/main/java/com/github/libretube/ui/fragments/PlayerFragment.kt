@@ -42,7 +42,6 @@ import androidx.core.os.postDelayed
 import androidx.core.view.WindowCompat
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
-import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -137,7 +136,10 @@ import kotlin.io.path.exists
 import kotlin.math.absoluteValue
 
 
-private const val FULLSCREEN_ANIMATION_DURATION = 250
+private const val FULLSCREEN_ANIMATION_DURATION = 300
+
+// how long a fullscreen change waits for the screen to rotate before it animates in place
+private const val ROTATION_WAIT_TIMEOUT = 400L
 private const val MAX_OFFLINE_SUGGESTIONS = 30
 private const val MINI_SEEK_BUTTON_SCALE = 0.6f
 private const val PULL_DOWN_FADE_DISTANCE = 160f
@@ -219,6 +221,19 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private var normalStartSet: ConstraintSet? = null
     private var normalRootTopPadding = 0
     private var savedCutoutMode = 0
+
+    /** Where the video was shown before a fullscreen change, to animate it from there. */
+    private class VideoFrameSnapshot(
+        val centerX: Float,
+        val centerY: Float,
+        val width: Float,
+        val windowWidth: Int,
+        val windowHeight: Int,
+        val rotation: Int
+    )
+
+    private var videoFrameSnapshot: VideoFrameSnapshot? = null
+    private var waitsForRotation = false
 
     /** True while the fullscreen layout change animates, so the minimize listeners ignore it. */
 
@@ -497,6 +512,18 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         initializeTransitionLayout()
         initializeOnClickActions()
 
+        binding.player.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            continueFullscreenAnimation()
+
+            // the nested video surface can keep the size of an older layout and be drawn too small:
+            // measure it again when the player has a new size and no transition is running
+            val sizeChanged = right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop
+            val progress = binding.playerMotionLayout.progress
+            if (sizeChanged && (progress == 0f || progress == 1f)) {
+                binding.player.post { _binding?.player?.requestLayout() }
+            }
+        }
+
         if (PlayerHelper.autoFullscreenEnabled && resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             setFullscreen()
         }
@@ -512,14 +539,14 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             playerControlsBinding.exoProgress.setChapters(it.orEmpty())
 
             // chapters row under the video, a tap jumps to the chapter
-            val chapters = it.orEmpty()
-            binding.chaptersRecView.isVisible = chapters.isNotEmpty()
             binding.chaptersRecView.adapter = ChaptersAdapter(
-                chapters,
+                it.orEmpty(),
                 if (::streams.isInitialized) streams.duration else 0L,
                 R.layout.chapter_card
             ) { position -> if (::playerController.isInitialized) playerController.seekTo(position) }
+            updateChaptersRowVisibility()
         }
+        binding.descriptionLayout.onExpandedChange = { updateChaptersRowVisibility() }
 
         chaptersViewModel.currentChapterIndex.observe(viewLifecycleOwner) { index ->
             if (index < 0) return@observe
@@ -748,6 +775,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         val activity = requireActivity()
         PictureInPictureCompat.setPictureInPictureParams(activity, pipParams)
+    }
+
+    // the chapters row belongs to the description: it shows only while the description is open
+    private fun updateChaptersRowVisibility() {
+        binding.chaptersRecView.isVisible = binding.descriptionLayout.isExpanded &&
+            (binding.chaptersRecView.adapter?.itemCount ?: 0) > 0
     }
 
     private fun closeMiniPlayer() {
@@ -1023,7 +1056,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     // that are caused by broken touch sequences from view reparenting.
     private var lastFullscreenEnterTime = 0L
 
-    private fun setFullscreen(portrait: Boolean = false) {
+    private fun setFullscreen(portrait: Boolean = false, animate: Boolean = true) {
         lastFullscreenEnterTime = System.currentTimeMillis()
 
         // set status bar icon color to white
@@ -1039,14 +1072,13 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         commonPlayerViewModel.setSheetExpand(null)
 
-        // a rotation changes the whole layout, so only animate portrait to portrait
-        openOrCloseFullscreenDialog(true, animate = portrait && isPortraitScreen())
+        openOrCloseFullscreenDialog(true, animate, waitForRotation = !portrait && isPortraitScreen())
 
         binding.player.updateMarginsByFullscreenMode()
     }
 
     @SuppressLint("SourceLockedOrientationActivity")
-    fun unsetFullscreen() {
+    fun unsetFullscreen(animate: Boolean = true) {
         if (activity == null || _binding == null) return
 
         commonPlayerViewModel.isFullscreen.value = false
@@ -1055,7 +1087,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             baseActivity.requestedOrientation = baseActivity.screenOrientationPref
         }
 
-        openOrCloseFullscreenDialog(false, animate = isPortraitScreen())
+        openOrCloseFullscreenDialog(
+            false,
+            animate,
+            waitForRotation = !PlayerHelper.autoFullscreenEnabled && !isPortraitScreen()
+        )
 
         binding.player.updateMarginsByFullscreenMode()
 
@@ -1138,7 +1174,109 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private fun isPortraitScreen() =
         resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
-    private fun openOrCloseFullscreenDialog(open: Boolean, animate: Boolean = true) {
+    private val videoFrame get() = binding.player.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
+
+    private fun setRotationAnimation(rotationAnimation: Int) {
+        val window = activity?.window ?: return
+        window.attributes = window.attributes.apply { this.rotationAnimation = rotationAnimation }
+    }
+
+    /**
+     * Remembers where the video is shown now. After the next layout (and the screen rotation, if
+     * [waitForRotation]) the video moves and grows from there to its new place, like YouTube.
+     */
+    private fun snapshotVideoFrame(waitForRotation: Boolean) {
+        val frame = videoFrame
+        if (frame.width == 0) return
+
+        val location = IntArray(2).also { frame.getLocationInWindow(it) }
+        val shownWidth = frame.width * frame.scaleX
+        val shownHeight = frame.height * frame.scaleY
+        val decorView = requireActivity().window.decorView
+        val snapshot = VideoFrameSnapshot(
+            centerX = location[0] + shownWidth / 2,
+            centerY = location[1] + shownHeight / 2,
+            width = shownWidth,
+            windowWidth = decorView.width,
+            windowHeight = decorView.height,
+            rotation = binding.root.display?.rotation ?: 0
+        )
+        videoFrameSnapshot = snapshot
+        waitsForRotation = waitForRotation
+
+        if (waitForRotation) {
+            // the system's rotation animation would run on top of the video's own animation
+            setRotationAnimation(WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT)
+            // the screen may not rotate at all (e.g. a locked orientation): animate in place then
+            binding.player.postDelayed({
+                if (_binding != null && videoFrameSnapshot === snapshot) {
+                    waitsForRotation = false
+                    continueFullscreenAnimation()
+                }
+            }, ROTATION_WAIT_TIMEOUT)
+        }
+    }
+
+    /**
+     * FLIP: the layout already has its new form, so show the video frame at its old place and
+     * animate only the frame. Animating the layout itself re-measures the related videos list on
+     * every frame. A SurfaceView cannot be rotated, so after a rotation the video only moves and grows.
+     */
+    private fun continueFullscreenAnimation() {
+        val snapshot = videoFrameSnapshot ?: return
+        val frame = videoFrame
+        if (frame.width == 0) return
+
+        frame.animate().cancel()
+        frame.pivotX = frame.width / 2f
+        frame.pivotY = frame.height / 2f
+        frame.scaleX = 1f
+        frame.scaleY = 1f
+        frame.translationX = 0f
+        frame.translationY = 0f
+        val location = IntArray(2).also { frame.getLocationInWindow(it) }
+
+        // the old center of the video, in the coordinates of the (possibly rotated) window
+        val rotation = binding.root.display?.rotation ?: snapshot.rotation
+        val (oldCenterX, oldCenterY) = when ((snapshot.rotation - rotation + 4) % 4) {
+            0 -> snapshot.centerX to snapshot.centerY
+            1 -> snapshot.windowHeight - snapshot.centerY to snapshot.centerX
+            3 -> snapshot.centerY to snapshot.windowWidth - snapshot.centerX
+            else -> snapshot.windowWidth - snapshot.centerX to snapshot.windowHeight - snapshot.centerY
+        }
+        val scale = snapshot.width / frame.width
+        frame.scaleX = scale
+        frame.scaleY = scale
+        frame.translationX = oldCenterX - (location[0] + frame.width / 2f)
+        frame.translationY = oldCenterY - (location[1] + frame.height / 2f)
+
+        // keep the video at its old place until the screen has rotated
+        if (waitsForRotation && rotation == snapshot.rotation) return
+        videoFrameSnapshot = null
+
+        // the frame may be shown outside the player's bounds while the player shrinks
+        binding.player.clipChildren = false
+        binding.playerMotionLayout.clipChildren = false
+        // start one frame later: the frame that lays out the whole page is slow and would
+        // swallow the start of the animation
+        frame.post {
+            frame.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationX(0f)
+                .translationY(0f)
+                .setInterpolator(DecelerateInterpolator())
+                .setDuration(FULLSCREEN_ANIMATION_DURATION.toLong())
+                .withEndAction {
+                    _binding?.player?.clipChildren = true
+                    _binding?.playerMotionLayout?.clipChildren = true
+                    setRotationAnimation(WindowManager.LayoutParams.ROTATION_ANIMATION_ROTATE)
+                }
+                .start()
+        }
+    }
+
+    private fun openOrCloseFullscreenDialog(open: Boolean, animate: Boolean = true, waitForRotation: Boolean = false) {
         val motionLayout = binding.playerMotionLayout
         val normalSet = normalStartSet ?: ConstraintSet().apply {
             clone(motionLayout.getConstraintSet(R.id.start))
@@ -1159,23 +1297,13 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         // swiping down must not minimize the player while it is fullscreen
         motionLayout.getTransition(R.id.yt_transition)?.isEnabled = !open
 
-        if (animate) {
-            // FLIP: change the layout once, then slide only the video frame from its old place.
-            // Animating the layout itself re-measures the related videos list on every frame.
-            val videoFrame = binding.player.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
-            val oldTop = IntArray(2).also { videoFrame.getLocationOnScreen(it) }[1]
-            binding.player.doOnNextLayout {
-                val newTop = IntArray(2).also { videoFrame.getLocationOnScreen(it) }[1]
-                // the frame may slide outside the player's bounds while the player shrinks
-                binding.player.clipChildren = false
-                videoFrame.translationY = (oldTop - newTop).toFloat()
-                videoFrame.animate()
-                    .translationY(0f)
-                    .setInterpolator(DecelerateInterpolator())
-                    .setDuration(FULLSCREEN_ANIMATION_DURATION.toLong())
-                    .withEndAction { _binding?.player?.clipChildren = true }
-                    .start()
-            }
+        if (animate) snapshotVideoFrame(waitForRotation)
+        if (animate && !open && !waitForRotation) {
+            // the page fades in over black while the video slides back, the mirror of the pull down
+            binding.root.setBackgroundColor(Color.BLACK)
+            binding.playerScrollView.alpha = 0f
+            binding.playerScrollView.animate().alpha(1f).setDuration(FULLSCREEN_ANIMATION_DURATION.toLong()).start()
+            binding.root.postDelayed({ _binding?.root?.background = null }, FULLSCREEN_ANIMATION_DURATION.toLong())
         }
         motionLayout.updateState(R.id.start, targetSet)
 
@@ -1796,12 +1924,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             val timeSinceEnter = System.currentTimeMillis() - lastFullscreenEnterTime
             when (newConfig.orientation) {
                 // go to fullscreen mode
-                Configuration.ORIENTATION_LANDSCAPE -> setFullscreen()
+                Configuration.ORIENTATION_LANDSCAPE -> setFullscreen(animate = false)
                 // exit fullscreen if not landscape
                 else -> {
                     // Safety net: ignore exits right after entering fullscreen
                     if (timeSinceEnter < 500) return
-                    unsetFullscreen()
+                    unsetFullscreen(animate = false)
                 }
             }
         }
@@ -1861,6 +1989,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // a fullscreen change that did not finish must not leave the jump cut for the whole app
+        setRotationAnimation(WindowManager.LayoutParams.ROTATION_ANIMATION_ROTATE)
         _binding = null
     }
 

@@ -62,6 +62,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
     private val scrollView by lazy { findViewById<NestedScrollView>(R.id.player_scrollView) }
     private val relatedVideosView by lazy { findViewById<View>(R.id.related_rec_view) }
     private var isTouchOnScrollView = false
+    private var scrollTouchStartX = 0f
     private var scrollTouchStartY = 0f
     private var scrollAtTop = false
     private var portraitFullscreenTriggered = false
@@ -91,6 +92,11 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
 
     private inner class Listener : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapUp(e: MotionEvent): Boolean {
+            // a parked card first comes back onto the screen, the next tap opens the player
+            if (isMiniPlayerParked()) {
+                moveMiniPlayer { applyMiniPlayerBounds(unpark = true) }
+                return true
+            }
             setTransitionDuration(200)
             transitionToStart()
             return true
@@ -159,9 +165,35 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         miniPlayerWidth = newWidth
         miniPlayerX = (centerX - newWidth / 2f).toInt()
         miniPlayerY = (centerY - newWidth * 9 / 16 / 2f).toInt()
-        applyMiniPlayerBounds()
+        moveMiniPlayer { applyMiniPlayerBounds() }
+    }
+
+    private fun isMiniPlayerParked(): Boolean {
+        val x = miniPlayerX ?: return false
+        return x < 0 || x + viewToDetectTouch.width > width
+    }
+
+    /**
+     * Runs [applyBounds], then slides the card from where it is shown now to its new place.
+     */
+    private fun moveMiniPlayer(applyBounds: () -> Unit) {
+        val card = viewToDetectTouch
+        // a pinched card is scaled around its center, so its shown corner is not at x and y
+        val shownX = card.x + card.width * (1 - card.scaleX) / 2
+        val shownY = card.y + card.height * (1 - card.scaleY) / 2
+        applyBounds()
         // keep the temporary transform until the new layout is ready, to avoid a one frame jump
-        card.doOnPreDraw { resetMiniPlayerTransforms() }
+        card.doOnPreDraw {
+            val startX = shownX - card.left
+            val startY = shownY - card.top
+            miniPlayerViews.forEach {
+                it.scaleX = 1f
+                it.scaleY = 1f
+                it.translationX = startX
+                it.translationY = startY
+                it.animate().translationX(0f).translationY(0f).setDuration(MINI_PLAYER_SNAP_DURATION).start()
+            }
+        }
     }
 
     private fun resetMiniPlayerTransforms() = miniPlayerViews.forEach {
@@ -175,7 +207,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
      * Applies the user's mini player size and position to the minimized constraint set,
      * clamped to the visible part of the screen.
      */
-    private fun applyMiniPlayerBounds() {
+    private fun applyMiniPlayerBounds(unpark: Boolean = false) {
         if (isAudioPlayer) return
         val set = getConstraintSet(R.id.end) ?: return
         val cardId = R.id.main_container
@@ -201,13 +233,18 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
             val maxY = (height - paddingBottom - cardHeight - controlsHeight - margin).coerceAtLeast(minY)
 
             // a card dragged a third over the left or right edge parks there with a small part
-            // left to drag it back, any other card stays fully inside the borders
+            // left to drag it back, any other card snaps to the nearer side, never the center
             val peekWidth = cardWidth / MINI_PLAYER_PEEK_FRACTION
             val parkOverflow = cardWidth / MINI_PLAYER_PARK_FRACTION
+            val leftX = margin
+            val rightX = (width - cardWidth - margin).coerceAtLeast(margin)
+            val isOnLeftHalf = x + cardWidth / 2 < width / 2
             val placedX = when {
+                unpark -> if (isOnLeftHalf) leftX else rightX
                 x < -parkOverflow -> peekWidth - cardWidth
                 x + cardWidth > width + parkOverflow -> width - peekWidth
-                else -> x.coerceIn(margin, (width - cardWidth - margin).coerceAtLeast(margin))
+                isOnLeftHalf -> leftX
+                else -> rightX
             }
             miniPlayerX = placedX
 
@@ -266,6 +303,12 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                 }
                 touchInitialX = event.x
                 touchInitialY = event.y
+
+                // a parked card shows only a small part: every touch on it belongs to the card,
+                // not to the buttons that happen to be under the finger
+                if (startedMinimized && isTouchDownInsideHitArea && isMiniPlayerParked()) {
+                    shouldInterceptTouchEvent = true
+                }
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -330,6 +373,7 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
                     val relatedTop = relatedVideosView?.let { sv.top + it.top - sv.scrollY } ?: Int.MAX_VALUE
                     if (viewRect.contains(event.x.toInt(), event.y.toInt()) && event.y < relatedTop) {
                         isTouchOnScrollView = true
+                        scrollTouchStartX = event.x
                         scrollTouchStartY = event.y
                         scrollAtTop = !sv.canScrollVertically(-1)
                     }
@@ -338,29 +382,35 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
 
             MotionEvent.ACTION_MOVE -> {
                 if (isTouchOnScrollView && scrollAtTop && !startedMinimized && currentState != R.id.end) {
-                    val deltaY = event.y - scrollTouchStartY
-                    // Report live drag progress for animation (even past threshold, even negative)
-                    swipeDownOnScrollListener.forEach { it.invoke(deltaY) }
-                    // the header moves with the finger, so its children never see the drag and
-                    // would fire a click on release: take the touch away from them once
-                    if (!pullDownOwnsTouch && deltaY > scaledTouchSlop) {
-                        pullDownOwnsTouch = true
-                        MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }.also {
-                            super.dispatchTouchEvent(it)
-                            it.recycle()
+                    if (!pullDownOwnsTouch) {
+                        val dx = abs(event.x - scrollTouchStartX)
+                        val dy = event.y - scrollTouchStartY
+                        if (dx > scaledTouchSlop && dx > abs(dy)) {
+                            // a sideways swipe (e.g. on the chapters row) never pulls the page down
+                            isTouchOnScrollView = false
+                        } else if (dy > scaledTouchSlop && dy > dx) {
+                            // the header moves with the finger, so its children never see the drag
+                            // and would fire a click on release: take the touch away from them once
+                            pullDownOwnsTouch = true
+                            // the drag starts here, so the page does not jump by the touch slop
+                            scrollTouchStartY = event.y
+                            MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }.also {
+                                super.dispatchTouchEvent(it)
+                                it.recycle()
+                            }
                         }
                     }
-                    if (deltaY > 80f.dpToPx()) {
-                        portraitFullscreenTriggered = true
-                    } else if (deltaY < 0) {
-                        // Finger moved back above start — cancel the trigger
-                        portraitFullscreenTriggered = false
+                    if (pullDownOwnsTouch) {
+                        val drag = event.y - scrollTouchStartY
+                        swipeDownOnScrollListener.forEach { it.invoke(drag) }
+                        // decided by where the finger is on release: dragging back up cancels
+                        portraitFullscreenTriggered = drag > PULL_DOWN_TRIGGER_DP.dpToPx()
                     }
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (isTouchOnScrollView && scrollAtTop && !startedMinimized && currentState != R.id.end) {
+                if (pullDownOwnsTouch) {
                     swipeDownOnScrollEndListener.forEach {
                         it.invoke(portraitFullscreenTriggered)
                     }
@@ -401,6 +451,8 @@ class SingleViewTouchableMotionLayout(context: Context, attributeSet: AttributeS
         private const val MINI_PLAYER_DEFAULT_WIDTH_DP = 200f
         private const val MINI_PLAYER_PEEK_FRACTION = 6
         private const val MINI_PLAYER_PARK_FRACTION = 3
+        private const val MINI_PLAYER_SNAP_DURATION = 200L
+        private const val PULL_DOWN_TRIGGER_DP = 120f
 
         // kept for the app's lifetime so the next video's mini player opens at the same place
         private var miniPlayerWidth: Int? = null

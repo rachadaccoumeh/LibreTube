@@ -33,6 +33,9 @@ class DescriptionLayout(
     private var streams: Streams? = null
     var handleLink: (link: String) -> Unit = {}
 
+    val isExpanded get() = binding.descLinLayout.isVisible
+    var onExpandedChange: (isExpanded: Boolean) -> Unit = {}
+
     private val videoTagsAdapter = VideoTagsAdapter()
 
     init {
@@ -162,6 +165,7 @@ class DescriptionLayout(
 
         binding.playerDescription.isVisible = isNewStateExpanded
         binding.descLinLayout.isVisible = isNewStateExpanded
+        onExpandedChange(isNewStateExpanded)
     }
 
     companion object {
