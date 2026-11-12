@@ -22,14 +22,14 @@ keep both.
 - YouTube-style controls: round play, previous and next buttons, time pill and fullscreen button at the bottom edge
 - Thin progress line on the video edge: white while playing, red with a dot when the controls show; drag it to seek
 - Swipe down on the video to minimize, pull down on the title area for portrait fullscreen, swipe down to leave fullscreen
-- Smooth in-place fullscreen (no black flash), brightness and volume swipes in fullscreen
+- Smooth in-place fullscreen (no black flash): the video moves and grows into place; brightness and volume swipes in fullscreen
 - Pinch zoom in two steps like YouTube: the first pinch fills the screen, the next one zooms and pans freely
-- Chapters row under the video (tap to jump) and the chapter name in the seek preview
+- Chapters row in the open description (tap to jump) and the chapter name in the seek preview
 - The last video comes back minimized when you reopen the app, and the paused video shows its frame instead of a black screen
 
 **Floating mini player**
 - A small video card that stays on top while you browse the app
-- Drag it anywhere, pinch to resize it, or park it on the left or right side of the screen
+- Drag it to the left or right side, pinch to resize it, or park it at the screen edge; a tap brings a parked player back
 - Control bar with play/pause and 10-second rewind and forward
 
 **Playback**
@@ -46,7 +46,7 @@ keep both.
 - Pick any playlist as your Watch later list; a Watch later button sits next to Watch history
 
 **Feed and lists**
-- NEW badges in the subscriptions feed and a "mark as caught up" divider
+- NEW badges in the subscriptions feed, with "Show only new", "Go to oldest new" and "Mark seen"
 - 3-dot menu on every video card, a back-to-top button on long lists
 - Random suggestions under downloaded videos
 
