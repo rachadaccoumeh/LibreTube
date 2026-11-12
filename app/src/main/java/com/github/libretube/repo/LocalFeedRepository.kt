@@ -195,7 +195,10 @@ class LocalFeedRepository : FeedRepository {
                 // shorts fetched via the shorts tab don't have upload dates so we fall back to the feedInfo
                 feedInfoItems[item.url.toID()]
             )
-        }.filter { it.uploaded > minimumDateMillis }
+        }
+            // the tabs give rounded dates ("4 weeks ago" is 28 days, also for a 34 days old video):
+            // without the margin, a video that was cleaned up at 30 days comes back as a NEW one
+            .filter { it.uploaded > minimumDateMillis + Duration.ofDays(ROUNDED_DATE_MARGIN_DAYS).toMillis() }
         return Pair(subscription, streamItems)
     }
 
@@ -221,5 +224,6 @@ class LocalFeedRepository : FeedRepository {
         val CHANNEL_BATCH_DELAY = (500L..1500L)
 
         private const val MAX_FEED_AGE_DAYS = 30L // 30 days
+        private const val ROUNDED_DATE_MARGIN_DAYS = 3L
     }
 }
