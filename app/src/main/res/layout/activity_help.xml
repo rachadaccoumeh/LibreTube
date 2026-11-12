@@ -34,39 +34,13 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/matrix"
+            android:id="@+id/report"
             style="@style/AboutCard">
 
             <androidx.appcompat.widget.AppCompatTextView
                 style="@style/AboutItem"
-                android:text="Matrix"
-                app:drawableStartCompat="@drawable/ic_matrix"
-                tools:ignore="HardcodedText" />
-
-        </com.google.android.material.card.MaterialCardView>
-
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/mastodon"
-            style="@style/AboutCard">
-
-            <androidx.appcompat.widget.AppCompatTextView
-                style="@style/AboutItem"
-                android:text="Mastodon"
-                app:drawableStartCompat="@drawable/ic_mastodon"
-                tools:ignore="HardcodedText" />
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/lemmy"
-            style="@style/AboutCard">
-
-            <androidx.appcompat.widget.AppCompatTextView
-                style="@style/AboutItem"
-                android:text="Lemmy"
-                app:drawableStartCompat="@drawable/ic_lemmy"
-                tools:ignore="HardcodedText" />
+                android:text="@string/report_problem"
+                app:drawableStartCompat="@drawable/ic_github" />
 
         </com.google.android.material.card.MaterialCardView>
 

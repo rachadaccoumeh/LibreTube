@@ -44,13 +44,13 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/translate"
+            android:id="@+id/upstream"
             style="@style/AboutCard">
 
             <androidx.appcompat.widget.AppCompatTextView
                 style="@style/AboutItem"
-                android:text="@string/translate"
-                app:drawableStartCompat="@drawable/ic_weblate" />
+                android:text="@string/based_on_libretube"
+                app:drawableStartCompat="@drawable/ic_info" />
 
         </com.google.android.material.card.MaterialCardView>
 

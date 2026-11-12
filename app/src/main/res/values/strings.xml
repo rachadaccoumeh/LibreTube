@@ -377,6 +377,8 @@
     <string name="mark_as_caught_up">Mark as caught up</string>
     <string name="jump_to_oldest_new">Go to oldest new</string>
     <string name="only_new_videos">Show only new</string>
+    <string name="based_on_libretube">Based on LibreTube</string>
+    <string name="report_problem">Report a problem</string>
     <string name="mark_as_seen_short">Mark seen</string>
     <plurals name="new_videos_count">
         <item quantity="one">%d new video</item>
