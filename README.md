@@ -68,7 +68,6 @@ The upstream LibreTube README follows. All credit for the base app goes to the L
   <summary>📜️ Credits</summary>
 
 <sub>Readme Design and Banners by [XelXen](https://github.com/XelXen)</sub> <br>
-<sub>Readme Screenshots by [ARBoyGo](https://github.com/ARBoyGo)</sub> <br>
 <sub>Readme Emoji is from [openmoji](https://openmoji.org)</sub>
 
   <summary>Icons</summary>
@@ -77,42 +76,6 @@ The upstream LibreTube README follows. All credit for the base app goes to the L
 <sub>[Boosted Bird](https://github.com/libre-tube/LibreTube/blob/master/app/src/main/res/mipmap-xxxhdpi/ic_bird_round.png) by [Margot Albert-Heuzey](https://margotdesign.ovh)</sub>
 
 </details>
-
-<h2 align="left">
-<sub>
-<img  src="assets/readme/about.svg"
-      height="30"
-      width="30">
-</sub>
-About
-</h2>
-
-YouTube has an extremely invasive [privacy policy](https://support.google.com/youtube/answer/10364219) which relies on using user data in unethical ways. They store a lot of your personal data - ranging from ideas, music taste, content, political opinions, and much more than you think.
-
-LibreTube aims at improving the users' privacy by being independent from Google and bypassing their data collection as much as possible. The app only sends the minimum amount of data necessary to ensure that the app works, e.g. it only loads the YouTube-video you want to play without tracking your behavior when using the app.
-
-If you have questions or need help, please make sure to read the [FAQ](https://libre-tube.github.io/#faq) before asking for help at the community channels. The [Matrix room](https://matrix.to/#/#LibreTube:matrix.org) is considered as the main communication channel, all other forums or social media accounts are maintained by volunteers from the community but not the developer(s).
-
-<h2 align="left">
-<sub>
-<img  src="assets/readme/phone.svg"
-      height="30"
-      width="30">
-</sub>
-Screenshots
-</h2>
-
-<div style="width:100%; display:flex; justify-content:space-between;">
-
-[<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_1.jpg" width=19% alt="Home">](fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_1.jpg)
-[<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_2.jpg" width=19% alt="Home">](fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_2.jpg)
-[<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_3.jpg" width=19% alt="Subscriptions">](fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_3.jpg)
-[<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_4.jpg" width=19% alt="Library">](fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_4.jpg)
-[<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_9.jpg" width=19% alt="Channel Overview">](fastlane/metadata/android/en-US/images/phoneScreenshots/Screenshot_9.jpg)
-
-* More screenshots can be found [here](https://github.com/libre-tube/LibreTube/blob/master/SCREEN_SHOT.md)
-
-</div>
 
 <h2 align="left">
 <sub>
@@ -146,23 +109,6 @@ Contributing
 </h2>
 
 For information on how to contribute, please check the [contribution guide](./CONTRIBUTING.md).
-
-<h2 align="left">
-<sub>
-<img  src="assets/readme/donate.svg"
-      height="30"
-      width="30">
-</sub>
-Donate
-</h2>
-
-Donations can be made at:
-* <https://github.com/sponsors/Bnyro>
-* <https://liberapay.com/Bnyro>
-* Monero (XMR): 47jAx7jMFo5iqy9VgDH98qL1bSK4kr6Pxi7HKWcRwsxbVYJdjxJtyrwXeAUa5MutvcQUmWMBfvAKnPAutDHvWEymUgLm5v8
-* Ethereum (ETH): 0x599909f54CdC18B997Be8F032341d1Fb14BF4F39
-
-Contributions in any form are welcome!
 
 <h2 align="left">
 📝 Translations
