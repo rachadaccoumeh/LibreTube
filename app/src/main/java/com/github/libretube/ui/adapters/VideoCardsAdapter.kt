@@ -36,7 +36,8 @@ import kotlinx.coroutines.withContext
 class VideoCardsAdapter(
     private val columnWidthDp: Float? = null,
     private val onMarkCaughtUp: (() -> Unit)? = null,
-    private val onJumpToOldestNew: (() -> Unit)? = null
+    private val onJumpToOldestNew: (() -> Unit)? = null,
+    private val onToggleOnlyNew: (() -> Unit)? = null
 ) :
     ListAdapter<StreamItem, VideoCardsViewHolder>(
         DiffUtilItemCallback(
@@ -99,6 +100,9 @@ class VideoCardsAdapter(
         holder.newVideosHeaderBinding?.apply {
             // the header item carries the number of new videos in its title
             newVideosCount.text = video.title
+            // the header item is marked as new while the "only new videos" filter is on
+            onlyNewBtn.isChecked = video.isNew
+            onlyNewBtn.setOnClickListener { onToggleOnlyNew?.invoke() }
             jumpToNewBtn.setOnClickListener { onJumpToOldestNew?.invoke() }
             markSeenTopBtn.setOnClickListener { onMarkCaughtUp?.invoke() }
         }

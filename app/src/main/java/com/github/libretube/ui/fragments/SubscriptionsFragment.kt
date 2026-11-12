@@ -61,8 +61,16 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
                 showFeed(restoreScrollState = true)
             }
         },
-        onJumpToOldestNew = { jumpToOldestNewVideo() }
+        onJumpToOldestNew = { jumpToOldestNewVideo() },
+        onToggleOnlyNew = {
+            showOnlyNew = !showOnlyNew
+            lifecycleScope.launch {
+                showFeed(restoreScrollState = false)
+            }
+        }
     )
+
+    private var showOnlyNew = false
 
     /**
      * Scrolls to the oldest NEW video, so the new videos can be watched from the bottom up.
@@ -390,7 +398,11 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
                 streamItem.copy(isNew = insertedAt > lastUserSeenTime && !streamItem.isUpcoming)
             }
 
+        // without new videos the header with the filter button is not shown: turn the filter off
+        if (feed.none { it.isNew }) showOnlyNew = false
+
         val sortedFeed = feed
+            .filter { !showOnlyNew || it.isNew }
             .sortedBySelectedOrder()
             .toMutableList()
 
@@ -410,7 +422,8 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
                 StreamItem(
                     url = NEW_HEADER_KEY,
                     type = VideoCardsAdapter.NEW_HEADER_STREAM_TYPE,
-                    title = resources.getQuantityString(R.plurals.new_videos_count, newCount, newCount)
+                    title = resources.getQuantityString(R.plurals.new_videos_count, newCount, newCount),
+                    isNew = showOnlyNew
                 )
             )
         }

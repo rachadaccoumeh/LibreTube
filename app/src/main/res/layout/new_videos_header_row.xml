@@ -27,6 +27,16 @@
             tools:text="12 new videos" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/only_new_btn"
+            style="@style/Widget.Material3.Button.IconButton.Outlined"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:contentDescription="@string/only_new_videos"
+            android:tooltipText="@string/only_new_videos"
+            app:icon="@drawable/ic_filter_sort" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/jump_to_new_btn"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
