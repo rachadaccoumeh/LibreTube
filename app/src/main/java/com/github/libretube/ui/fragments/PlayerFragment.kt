@@ -17,8 +17,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.KeyEvent
-import android.view.PixelCopy
-import android.view.SurfaceView
+import android.view.TextureView
 import android.graphics.Color
 import android.view.View
 import android.view.animation.DecelerateInterpolator
@@ -932,21 +931,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         binding.relPlayerScreenshot.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
-            val surfaceView =
-                binding.player.videoSurfaceView as? SurfaceView ?: return@setOnClickListener
-
-            val bmp = Bitmap.createBitmap(
-                surfaceView.width,
-                surfaceView.height,
-                Bitmap.Config.ARGB_8888
-            )
-
-            PixelCopy.request(surfaceView, bmp, { _ ->
-                screenshotBitmap = bmp
-                val currentPosition =
-                    playerController.currentPosition.toFloat() / 1000
-                openScreenshotFile.launch("${streams.title}-${currentPosition}.png")
-            }, handler)
+            val textureView =
+                binding.player.videoSurfaceView as? TextureView ?: return@setOnClickListener
+            screenshotBitmap = textureView.bitmap ?: return@setOnClickListener
+            val currentPosition = playerController.currentPosition.toFloat() / 1000
+            openScreenshotFile.launch("${streams.title}-${currentPosition}.png")
         }
 
         binding.playerChannel.setOnClickListener {
